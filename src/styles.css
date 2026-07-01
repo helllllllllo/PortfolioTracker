@@ -1049,3 +1049,228 @@ tbody tr:hover {
 .warning-banner strong {
   color: #b45309;
 }
+
+/* ============================================================
+   LIGHT THEME — re-skins the dark "cockpit" chrome to match the
+   light institutional report cards. (Layout/spacing unchanged.)
+   ============================================================ */
+:root {
+  color: #16302b;
+  background: #eef2ef;
+}
+
+body {
+  background: #eef2ef;
+}
+
+button,
+.file-button {
+  background: #f6faf8;
+  color: #16302b;
+  border-color: #cbd5d0;
+  box-shadow: none;
+}
+
+button:hover,
+.file-button:hover {
+  background: #e9fbf5;
+  border-color: #0f766e;
+  box-shadow: none;
+}
+
+.topbar {
+  background: #ffffff;
+  border-color: #e6ece8;
+  box-shadow: 0 12px 32px rgba(6, 17, 15, 0.10);
+}
+
+.topbar::after {
+  background: linear-gradient(90deg, transparent, rgba(15, 118, 110, 0.55), transparent);
+}
+
+.topbar h1 {
+  color: #0f1f1c;
+}
+
+.eyebrow,
+.panel-kicker {
+  color: #0f766e;
+}
+
+.brand-mark {
+  color: #b45309;
+}
+
+.ledger-line {
+  color: #64748b;
+}
+
+.topbar-actions button {
+  background: #0f766e;
+  color: #ffffff;
+  border-color: #0f766e;
+}
+
+.topbar-actions button:hover {
+  background: #0b5c55;
+}
+
+.topbar-actions .file-button {
+  background: #f6faf8;
+  color: #16302b;
+}
+
+.status-pill {
+  border-color: rgba(15, 118, 110, 0.3);
+  background: rgba(15, 118, 110, 0.10);
+  color: #0f766e;
+}
+
+.status-dot {
+  background: #0f766e;
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
+}
+
+.summary-card,
+.panel {
+  background: #ffffff;
+  border-color: #e6ece8;
+  box-shadow: 0 10px 26px rgba(6, 17, 15, 0.08);
+}
+
+.summary-card-primary {
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.12), rgba(37, 99, 235, 0.05)),
+    #ffffff;
+}
+
+.summary-card::before {
+  background: #d3ddd8;
+}
+
+.summary-card-primary::before {
+  background: linear-gradient(90deg, #0f766e, #2563eb, #d97706);
+}
+
+.summary-grid span {
+  color: #64748b;
+}
+
+.summary-grid strong {
+  color: #0f1f1c;
+}
+
+.metric-positive strong,
+.number-positive {
+  color: #0f766e;
+}
+
+.metric-negative strong,
+.number-negative {
+  color: #dc2626;
+}
+
+.number-neutral {
+  color: #16302b;
+}
+
+.panel h2 {
+  color: #0f1f1c;
+}
+
+.subtle {
+  color: #64748b;
+}
+
+.period-button {
+  background: #f4f7f5;
+  border-color: #cbd5d0;
+  color: #475569;
+}
+
+.period-button.is-active {
+  border-color: #0f766e;
+  background: rgba(15, 118, 110, 0.14);
+  color: #0f766e;
+}
+
+th {
+  color: #64748b;
+  background: #f4f7f5;
+}
+
+td {
+  color: #1f3a34;
+}
+
+th,
+td {
+  border-bottom-color: #eaefec;
+}
+
+tbody tr:hover {
+  background: rgba(15, 118, 110, 0.06);
+}
+
+.dividend-total {
+  color: #0f1f1c;
+}
+
+.dividend-state {
+  color: #64748b;
+}
+
+.dividend-state strong {
+  color: #b45309;
+}
+
+.manual-dividend-field {
+  border-color: #e6ece8;
+  background: #f8faf9;
+}
+
+.manual-dividend-field span,
+.dividend-grid span {
+  color: #64748b;
+}
+
+.manual-dividend-field input,
+.dividend-grid strong {
+  color: #0f1f1c;
+}
+
+.quote-delayed,
+.quote-live-ish {
+  border-color: rgba(15, 118, 110, 0.3);
+  background: rgba(15, 118, 110, 0.12);
+  color: #0f766e;
+}
+
+.quote-stale {
+  border-color: rgba(217, 119, 6, 0.4);
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+}
+
+.quote-missing {
+  border-color: rgba(220, 38, 38, 0.4);
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
+.quote-manual {
+  border-color: rgba(37, 99, 235, 0.38);
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.empty-table-cell,
+.empty-inline {
+  color: #64748b;
+}
+
+@media (max-width: 1180px) {
+  body {
+    background: #eef2ef;
+  }
+}
