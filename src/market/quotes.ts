@@ -27,28 +27,23 @@ function manualQuote(holding: Holding, price: number): Quote {
   };
 }
 
-function quoteKey(code: string, market: string): string {
-  return `${code}::${market}`;
-}
-
 export function priceHoldings(
   holdings: Holding[],
   quotes: Quote[],
   manualOverrides: ManualOverrides
 ): PricedHolding[] {
-  const quoteByCodeAndMarket = new Map(quotes.map((quote) => [quoteKey(quote.code, quote.market), quote]));
+  const quoteByCode = new Map(quotes.map((quote) => [quote.code, quote]));
 
   const priced = holdings.map((holding) => {
     const override = manualOverrides[holding.id];
     const quote =
       override !== undefined
         ? manualQuote(holding, override)
-        : quoteByCodeAndMarket.get(quoteKey(holding.code, holding.market)) ?? missingQuote(holding);
+        : quoteByCode.get(holding.code) ?? missingQuote(holding);
     const latestPrice = quote.price;
-    const fxRate = holding.currency === "USD" ? quote.fxRateToJpy ?? 1 : 1;
-    const fallbackPrice = holding.averageCost * fxRate;
+    const fallbackPrice = holding.averageCost;
     const marketValue = (latestPrice ?? fallbackPrice) * holding.quantity;
-    const costBasis = holding.costBasis * fxRate;
+    const costBasis = holding.costBasis;
     const unrealizedPnl = marketValue - costBasis;
 
     return {

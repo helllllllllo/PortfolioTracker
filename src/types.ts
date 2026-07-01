@@ -1,4 +1,4 @@
-export type Currency = "JPY" | "USD";
+export type Currency = "JPY";
 
 export type TradeSide = "buy" | "sell" | "split";
 
@@ -55,7 +55,7 @@ export type PortfolioSnapshot = {
   cash: number;
   holdingsValue: number;
   nav: number; // AUM = cash + holdingsValue
-  navTotalReturn: number; // nav + cumulative added-back dividends
+  navTotalReturn?: number; // nav + cumulative added-back dividends (always set by the fund engine)
   units: number;
   unitNav: number; // navTotalReturn / units (total-return unit price)
 };

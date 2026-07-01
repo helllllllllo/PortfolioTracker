@@ -10,13 +10,6 @@ function holdingId(code: string, _market: string): string {
   return code;
 }
 
-export function buildPortfolioState(trades: Trade[]): {
-  holdings: Holding[];
-  cash: number;
-  inferredInitialCash: number;
-  realizedPnl: number;
-  warnings: string[];
-};
 export function buildPortfolioState(trades: Trade[], asOfDate?: string): {
   holdings: Holding[];
   cash: number;
@@ -60,9 +53,6 @@ export function buildPortfolioState(trades: Trade[], asOfDate?: string): {
       holding.quantity += trade.quantity;
       holding.averageCost = holding.quantity === 0 ? 0 : holding.costBasis / holding.quantity;
       holding.currency = trade.currency ?? holding.currency;
-      if (trade.grossAmount === 0 && trade.currency === "USD") {
-        holding.costBasisWarning = "Transferred or split shares may not include original cost basis";
-      }
     } else if (trade.side === "sell") {
       if (trade.quantity > holding.quantity) {
         warnings.push(`${trade.code} ${trade.name}: sell quantity exceeds current holding`);

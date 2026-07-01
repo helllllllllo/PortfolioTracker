@@ -65,38 +65,36 @@ describe("priceHoldings", () => {
     expect(result[0].quote.status).toBe("live-ish");
   });
 
-  it("uses USDJPY to value US average-cost fallback in JPY", () => {
+  it("carries a missing quote at average cost", () => {
     const result = priceHoldings(
       [
         {
-          id: "SNOW::US",
-          code: "SNOW",
-          name: "SNOWFLAKE INC CLASS A",
-          market: "US",
-          quantity: 10,
-          averageCost: 224.89,
-          costBasis: 2248.9,
-          realizedPnl: 0,
-          currency: "USD"
+          id: "6301",
+          code: "6301",
+          name: "小松製作所",
+          market: "東証",
+          quantity: 100,
+          averageCost: 6504,
+          costBasis: 650400,
+          realizedPnl: 0
         }
       ],
       [
         {
-          code: "SNOW",
-          market: "US",
+          code: "6301",
+          market: "東証",
           price: null,
           currency: "JPY",
           asOf: null,
           source: "Portfolio API",
-          status: "missing",
-          fxRateToJpy: 160
+          status: "missing"
         }
       ],
       {}
     );
 
     expect(result[0].latestPrice).toBeNull();
-    expect(result[0].marketValue).toBeCloseTo(359824);
+    expect(result[0].marketValue).toBeCloseTo(650400);
     expect(result[0].unrealizedPnl).toBeCloseTo(0);
   });
 });

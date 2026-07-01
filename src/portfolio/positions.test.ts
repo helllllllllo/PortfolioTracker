@@ -200,57 +200,6 @@ describe("buildPortfolioState", () => {
     expect(afterSplit.averageCost).toBeCloseTo(1261.9166666666667, 12);
   });
 
-  it("resets quantity for Schwab reverse split events without changing remaining cost basis", () => {
-    const state = buildPortfolioState([
-      {
-        tradeDate: "2024-01-05",
-        settlementDate: "2024-01-05",
-        code: "HYDR",
-        name: "GLOBAL X HYDROGEN ETF",
-        market: "US",
-        side: "buy",
-        quantity: 1343,
-        price: 10,
-        grossAmount: 13430,
-        currency: "USD"
-      },
-      {
-        tradeDate: "2024-06-17",
-        settlementDate: "2024-06-17",
-        code: "HYDR",
-        name: "GLOBAL X HYDROGEN ETF",
-        market: "US",
-        side: "split",
-        quantity: 268,
-        price: 0,
-        grossAmount: 0,
-        currency: "USD"
-      },
-      {
-        tradeDate: "2026-05-21",
-        settlementDate: "2026-05-21",
-        code: "HYDR",
-        name: "GLOBAL X HYDROGEN ETF",
-        market: "US",
-        side: "sell",
-        quantity: 100,
-        price: 67.62,
-        grossAmount: 6762,
-        currency: "USD"
-      }
-    ]);
-
-    expect(state.holdings[0]).toEqual(
-      expect.objectContaining({
-        id: "HYDR",
-        quantity: 168,
-        costBasis: expect.closeTo(8418.805970149253, 8),
-        averageCost: expect.closeTo(50.111940298507456, 8),
-        currency: "USD"
-      })
-    );
-  });
-
   it("aggregates the same code across 東証 / PTS / 名証 into one holding", () => {
     const venueTrades: Trade[] = [
       {
