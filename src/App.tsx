@@ -33,6 +33,7 @@ import { buildAllocationSlices } from "./portfolio/allocation";
 import { buildAttribution } from "./portfolio/attribution";
 import { parseSbiExecutionCsv } from "./data/parseSbiCsv";
 import { parseSbiCashFlowCsv } from "./data/parseSbiCashFlowCsv";
+import { parseDividendCsv } from "./data/parseDividendCsv";
 import type { BenchmarkPoint, CashFlow, ExternalDividend, Quote, Trade } from "./types";
 import "./styles.css";
 
@@ -293,6 +294,21 @@ export default function App() {
     }
   }
 
+  async function handleImportDividends(file: File) {
+    try {
+      const buffer = await file.arrayBuffer();
+      const nextDividends = parseDividendCsv(buffer);
+      if (nextDividends.length === 0) {
+        setError("No dividend rows found in that CSV.");
+        return;
+      }
+      persistDividends(nextDividends);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Dividend import failed");
+    }
+  }
+
   async function handleImportCashFlows(file: File) {
     try {
       const buffer = await file.arrayBuffer();
@@ -377,6 +393,7 @@ export default function App() {
         quoteStatus={quoteMessage}
         onImport={handleImport}
         onImportCashFlows={handleImportCashFlows}
+        onImportDividends={handleImportDividends}
         onRefresh={handleRefresh}
       />
 

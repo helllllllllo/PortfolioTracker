@@ -6,6 +6,7 @@ type Props = {
   quoteStatus: string;
   onImport: (file: File) => void;
   onImportCashFlows: (file: File) => void;
+  onImportDividends: (file: File) => void;
   onRefresh: () => void;
 };
 
@@ -15,6 +16,7 @@ export function DashboardHeader({
   quoteStatus,
   onImport,
   onImportCashFlows,
+  onImportDividends,
   onRefresh
 }: Props) {
   return (
@@ -57,6 +59,20 @@ export function DashboardHeader({
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
               if (file) onImportCashFlows(file);
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+        <label className="file-button">
+          <Upload size={16} aria-hidden="true" />
+          <span>Import dividends</span>
+          <input
+            aria-label="Import dividends CSV"
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              if (file) onImportDividends(file);
               event.currentTarget.value = "";
             }}
           />
