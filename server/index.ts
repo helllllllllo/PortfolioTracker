@@ -2,28 +2,14 @@ import express from "express";
 import {
   fetchNikkei225NetTotalReturnDailySeries,
   fetchYahooDailySeries,
-  fetchYahooDailySeriesWithFallback,
   fetchYahooLatest
 } from "./yahooFinance.js";
-import { TOPIX_FALLBACK_SYMBOL } from "./benchmarkSymbols.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 8787);
-const DEFAULT_BENCHMARK_SYMBOLS = ["^TOPX", "^N225"];
 
-function parseBenchmarkSymbols(rawSymbols: unknown): [string, string] {
-  const provided = String(rawSymbols ?? "")
-    .split(",")
-    .map((symbol) => symbol.trim())
-    .filter(Boolean);
-
-  const [firstSymbol, secondSymbol] = provided;
-
-  return [
-    firstSymbol && firstSymbol.length > 0 ? firstSymbol : DEFAULT_BENCHMARK_SYMBOLS[0],
-    secondSymbol && secondSymbol.length > 0 ? secondSymbol : DEFAULT_BENCHMARK_SYMBOLS[1]
-  ];
-}
+// NEXT FUNDS TOPIX ETF; Yahoo adjusted close reinvests distributions ≈ TOPIX total return.
+const TOPIX_TR_SYMBOL = "1306.T";
 
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -53,20 +39,14 @@ app.get("/api/quotes", async (req, res) => {
 
 app.get("/api/benchmarks", async (req, res) => {
   const range = String(req.query.range ?? "1y");
-  const [topixSymbol, nikkeiSymbol] = parseBenchmarkSymbols(req.query.symbols);
 
   try {
-    const [topixResult, nikkei225] = await Promise.all([
-      fetchYahooDailySeriesWithFallback(topixSymbol, TOPIX_FALLBACK_SYMBOL, range),
-      nikkeiSymbol === DEFAULT_BENCHMARK_SYMBOLS[1]
-        ? fetchNikkei225NetTotalReturnDailySeries(range)
-        : fetchYahooDailySeries(nikkeiSymbol, range)
+    const [topix, nikkei225] = await Promise.all([
+      fetchYahooDailySeries(TOPIX_TR_SYMBOL, range, true),
+      fetchNikkei225NetTotalReturnDailySeries(range)
     ]);
 
-    res.json({
-      topix: topixResult.rows,
-      nikkei225
-    });
+    res.json({ topix, nikkei225 });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to load benchmarks";
     res.status(500).json({ error: msg });
