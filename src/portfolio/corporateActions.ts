@@ -22,8 +22,8 @@ export function canonicalHoldingMarket(rawMarket: string): string {
   return rawMarket;
 }
 
-function holdingMatchesSplit(holding: Pick<Holding, "code" | "market">, split: StockSplit): boolean {
-  return holding.code === split.code && canonicalHoldingMarket(holding.market) === split.market;
+function holdingMatchesSplit(holding: Pick<Holding, "code">, split: StockSplit): boolean {
+  return holding.code === split.code;
 }
 
 function splitId(split: StockSplit): string {

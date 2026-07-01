@@ -6,8 +6,8 @@ import {
 
 type MutableHolding = Holding;
 
-function holdingId(code: string, market: string): string {
-  return `${code}::${market}`;
+function holdingId(code: string, _market: string): string {
+  return code;
 }
 
 export function buildPortfolioState(trades: Trade[]): {

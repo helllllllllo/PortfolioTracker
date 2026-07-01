@@ -575,7 +575,7 @@ describe("App", () => {
       expect(fetchHistoryForHoldings).toHaveBeenCalledWith(
         [
           expect.objectContaining({
-            id: "7201::東証",
+            id: "7201",
             code: "7201",
             market: "東証"
           })
