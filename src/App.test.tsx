@@ -77,10 +77,11 @@ describe("App", () => {
 
   it("renders the dashboard shell before any import", () => {
     render(<App />);
-    expect(screen.getByText("Hiroshi Capital")).toBeInTheDocument();
-    expect(screen.getByText("Net asset value")).toBeInTheDocument();
+    expect(screen.getAllByText("Hiroshi Capital").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Net asset value").length).toBeGreaterThan(0);
     expect(screen.getByLabelText(/import trades csv/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/import cash flows csv/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /download quarterly tearsheet/i })).toBeInTheDocument();
   });
 
   it("computes a time-weighted NAV and return from trades + cash flows + quotes", async () => {

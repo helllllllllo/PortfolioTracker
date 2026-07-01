@@ -6,6 +6,8 @@ import { HoldingsTable } from "./components/HoldingsTable";
 import { PerformanceChart } from "./components/PerformanceChart";
 import { QuarterlyReturnsTable } from "./components/QuarterlyReturnsTable";
 import { SummaryStrip } from "./components/SummaryStrip";
+import { DownloadPngButton } from "./components/DownloadPngButton";
+import { formatCurrency } from "./format";
 import { summarizeDividends } from "./dividends/dividends";
 import type { DividendRow } from "./dividends/dividends";
 import { fetchBenchmarks, fetchHistoryForHoldings, fetchQuotesForHoldings } from "./market/apiClient";
@@ -97,8 +99,26 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function signedPct(value: number | null): string {
+  if (value === null) return "N/A";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${(value * 100).toFixed(2)}%`;
+}
+
+function signedPts(value: number | null): string {
+  if (value === null) return "N/A";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${value.toFixed(1)} pts`;
+}
+
+function toneClass(value: number | null): string {
+  if (value === null || value === 0) return "";
+  return value > 0 ? "stat-positive" : "stat-negative";
+}
+
 export default function App() {
   const ledgerVersionRef = useRef(0);
+  const tearsheetRef = useRef<HTMLDivElement>(null);
   const [fileName, setFileName] = useState<string | null>(() =>
     readLocalStorageValue(TRADE_CSV_NAME_STORAGE_KEY)
   );
@@ -199,6 +219,16 @@ export default function App() {
       ),
     [externalDividends]
   );
+
+  const latestChartPoint = [...chartData].reverse().find((point) => point.portfolio !== null) ?? null;
+  const vsTopix =
+    latestChartPoint?.portfolio != null && latestChartPoint?.topix != null
+      ? latestChartPoint.portfolio - latestChartPoint.topix
+      : null;
+  const vsNikkei =
+    latestChartPoint?.portfolio != null && latestChartPoint?.nikkei225 != null
+      ? latestChartPoint.portfolio - latestChartPoint.nikkei225
+      : null;
 
   function persistTrades(next: Trade[]) {
     setTrades(next);
@@ -319,9 +349,45 @@ export default function App() {
         currency="JPY"
       />
 
-      <div className="insight-grid">
-        <PerformanceChart data={chartData} benchmarkLabels={BENCHMARK_LABELS} />
-        <AllocationPieChart slices={allocationSlices} currency="JPY" />
+      <div className="tearsheet-bar">
+        <DownloadPngButton
+          targetRef={tearsheetRef}
+          filename={`hiroshi-capital-tearsheet-${asOfDate}.png`}
+          label="Download quarterly tearsheet"
+        />
+      </div>
+
+      <div className="report-tearsheet" ref={tearsheetRef}>
+        <div className="tearsheet-header">
+          <div>
+            <p className="report-eyebrow">Hiroshi Capital</p>
+            <h2>Quarterly performance &amp; allocation</h2>
+            <p className="report-sub">Total-return basis · as of {asOfDate}</p>
+          </div>
+          <div className="tearsheet-kpis">
+            <div>
+              <span>Net asset value</span>
+              <strong>{formatCurrency(nav, "JPY")}</strong>
+            </div>
+            <div>
+              <span>Return (since inception)</span>
+              <strong className={toneClass(sinceInception)}>{signedPct(sinceInception)}</strong>
+            </div>
+            <div>
+              <span>vs TOPIX</span>
+              <strong className={toneClass(vsTopix)}>{signedPts(vsTopix)}</strong>
+            </div>
+            <div>
+              <span>vs Nikkei</span>
+              <strong className={toneClass(vsNikkei)}>{signedPts(vsNikkei)}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="insight-grid">
+          <PerformanceChart data={chartData} benchmarkLabels={BENCHMARK_LABELS} asOf={asOfDate} />
+          <AllocationPieChart slices={allocationSlices} currency="JPY" asOf={asOfDate} />
+        </div>
       </div>
 
       <div className="content-grid">

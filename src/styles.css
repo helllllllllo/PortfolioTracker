@@ -834,3 +834,199 @@ tbody tr:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Report-grade light "tearsheet" cards (performance + allocation) ---- */
+.report-card {
+  background: #ffffff;
+  border: 1px solid #e6ece8;
+  box-shadow: 0 18px 44px rgba(6, 17, 15, 0.30);
+  color: #16302b;
+}
+
+.report-card.chart-panel,
+.report-card.allocation-panel {
+  background: #ffffff;
+}
+
+.report-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.report-eyebrow {
+  margin: 0;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.report-card h2 {
+  margin: 3px 0 0;
+  color: #0f1f1c;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+
+.report-sub {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.download-png {
+  min-height: 32px;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #cbd5d0;
+  border-radius: 8px;
+  background: #f6faf8;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: none;
+}
+
+.download-png:hover {
+  border-color: #0f766e;
+  background: #e9fbf5;
+  box-shadow: none;
+  transform: none;
+}
+
+.report-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.report-stat {
+  border: 1px solid #eaefec;
+  border-radius: 8px;
+  background: #f8faf9;
+  padding: 10px 12px;
+}
+
+.report-stat span {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.report-stat strong {
+  display: block;
+  margin-top: 6px;
+  color: #0f1f1c;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.stat-positive strong {
+  color: #0f766e;
+}
+
+.stat-negative strong {
+  color: #dc2626;
+}
+
+/* Allocation list on a light card */
+.report-card .allocation-total span {
+  color: #64748b;
+}
+
+.report-card .allocation-total strong {
+  color: #0f1f1c;
+}
+
+.report-card .allocation-row {
+  border: 1px solid #eef2f0;
+  background: #f8faf9;
+}
+
+.report-card .allocation-row strong {
+  color: #16302b;
+}
+
+.report-card .allocation-row div > span,
+.report-card .allocation-values span {
+  color: #64748b;
+}
+
+.report-card .empty-inline {
+  color: #64748b;
+}
+
+/* Composed quarterly tearsheet export container */
+.tearsheet-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 4px 0 14px;
+}
+
+.tearsheet-download {
+  min-height: 40px;
+  gap: 8px;
+  background: #0f766e;
+  color: #effdf9;
+  border-color: #14b8a6;
+  font-weight: 900;
+}
+
+.report-tearsheet {
+  background: #eef2ef;
+  border: 1px solid #dde5e0;
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.report-tearsheet .insight-grid {
+  margin-bottom: 0;
+}
+
+.tearsheet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 4px 6px 16px;
+}
+
+.tearsheet-header h2 {
+  margin: 3px 0 0;
+  color: #0f1f1c;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+}
+
+.tearsheet-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+}
+
+.tearsheet-kpis span {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tearsheet-kpis strong {
+  display: block;
+  margin-top: 5px;
+  color: #0f1f1c;
+  font-size: 21px;
+  line-height: 1.05;
+}
