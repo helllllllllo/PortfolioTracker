@@ -83,6 +83,18 @@ export type QuarterlyReturn = {
   dividendContribution: number | null;
 };
 
+export type CashFlowKind = "contribution" | "withdrawal" | "income";
+
+export type CashFlow = {
+  date: string;
+  kind: CashFlowKind;
+  category: string;
+  description: string;
+  amount: number;
+};
+
+export type ExternalDividend = { date: string; amount: number; code?: string; note?: string };
+
 export type DividendState = "confirmed" | "estimated" | "unavailable";
 
 export type DividendSummary = {
