@@ -4,13 +4,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { parseSbiExecutionCsv } from "./data/parseSbiCsv";
 import { parseSbiCashFlowCsv } from "./data/parseSbiCashFlowCsv";
-import { fetchBenchmarks, fetchHistoryForHoldings, fetchQuotesForHoldings } from "./market/apiClient";
+import {
+  fetchBenchmarks,
+  fetchDividends,
+  fetchHistoryForHoldings,
+  fetchQuotesForHoldings
+} from "./market/apiClient";
 import type { CashFlow, Trade } from "./types";
 
 vi.mock("./market/apiClient", () => ({
   fetchQuotesForHoldings: vi.fn(),
   fetchHistoryForHoldings: vi.fn(),
-  fetchBenchmarks: vi.fn()
+  fetchBenchmarks: vi.fn(),
+  fetchDividends: vi.fn()
 }));
 
 vi.mock("./data/parseSbiCsv", () => ({ parseSbiExecutionCsv: vi.fn() }));
@@ -70,6 +76,8 @@ describe("App", () => {
     vi.mocked(fetchQuotesForHoldings).mockReset();
     vi.mocked(fetchHistoryForHoldings).mockReset();
     vi.mocked(fetchBenchmarks).mockReset();
+    vi.mocked(fetchDividends).mockReset();
+    vi.mocked(fetchDividends).mockResolvedValue({});
     vi.mocked(parseSbiExecutionCsv).mockReset();
     vi.mocked(parseSbiCashFlowCsv).mockReset();
     installTestStorage();

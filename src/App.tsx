@@ -10,8 +10,15 @@ import { SummaryStrip } from "./components/SummaryStrip";
 import { DownloadPngButton } from "./components/DownloadPngButton";
 import { formatCurrency } from "./format";
 import { summarizeDividends } from "./dividends/dividends";
+import { computeDividends } from "./dividends/computeDividends";
+import type { DividendRecord } from "./dividends/computeDividends";
 import type { DividendRow } from "./dividends/dividends";
-import { fetchBenchmarks, fetchHistoryForHoldings, fetchQuotesForHoldings } from "./market/apiClient";
+import {
+  fetchBenchmarks,
+  fetchDividends,
+  fetchHistoryForHoldings,
+  fetchQuotesForHoldings
+} from "./market/apiClient";
 import {
   buildFundSnapshots,
   periodStartDate,
@@ -43,14 +50,8 @@ const TRADE_CSV_NAME_STORAGE_KEY = "portfolio:lastCsvName";
 const CASHFLOWS_STORAGE_KEY = "portfolio:cashFlows";
 const CASHFLOW_CSV_NAME_STORAGE_KEY = "portfolio:cashFlowCsvName";
 const DIVIDENDS_STORAGE_KEY = "portfolio:externalDividends";
-const EXPECTED_ANNUAL_DIVIDEND_STORAGE_KEY = "portfolio:expectedAnnualDividend";
 const PERIOD_STORAGE_KEY = "portfolio:period";
 const SNAPSHOTS_STORAGE_KEY = "portfolio:navSnapshots";
-
-const DIVIDEND_SEED_DATE = "2026-06-29";
-const DEFAULT_EXTERNAL_DIVIDENDS: ExternalDividend[] = [
-  { date: DIVIDEND_SEED_DATE, amount: 119511, note: "H1 2026 dividends (other account)" }
-];
 
 const BENCHMARK_LABELS = { primary: "TOPIX (TR)", secondary: "Nikkei 225 (TR)" };
 
@@ -81,16 +82,6 @@ function loadJsonArray<T>(key: string): T[] {
   } catch {
     return [];
   }
-}
-
-function loadExternalDividends(): ExternalDividend[] {
-  const stored = loadJsonArray<ExternalDividend>(DIVIDENDS_STORAGE_KEY);
-  return stored.length > 0 ? stored : DEFAULT_EXTERNAL_DIVIDENDS;
-}
-
-function parseMoney(value: string): number {
-  const parsed = Number(value.replace(/[,\s￥¥]/g, ""));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
 function loadPeriod(): PeriodKey {
@@ -140,12 +131,12 @@ export default function App() {
   const [cashFlows, setCashFlows] = useState<CashFlow[]>(() =>
     loadJsonArray<CashFlow>(CASHFLOWS_STORAGE_KEY)
   );
-  const [externalDividends, setExternalDividends] = useState<ExternalDividend[]>(() =>
-    loadExternalDividends()
+  // Dividends imported from a CSV (the actual amounts that hit the other account). When
+  // present these win; otherwise dividends are computed from J-Quants (see below).
+  const [importedDividends, setImportedDividends] = useState<ExternalDividend[]>(() =>
+    loadJsonArray<ExternalDividend>(DIVIDENDS_STORAGE_KEY)
   );
-  const [expectedDividendInput, setExpectedDividendInput] = useState<string>(
-    () => readLocalStorageValue(EXPECTED_ANNUAL_DIVIDEND_STORAGE_KEY) ?? "0"
-  );
+  const [dividendRecords, setDividendRecords] = useState<Record<string, DividendRecord[]>>({});
   const [period, setPeriod] = useState<PeriodKey>(() => loadPeriod());
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [quoteMessage, setQuoteMessage] = useState("Quotes not refreshed");
@@ -157,14 +148,14 @@ export default function App() {
   }>({ topix: [], nikkei225: [] });
   const [error, setError] = useState<string | null>(null);
 
-  const expectedAnnualDividend = useMemo(
-    () => parseMoney(expectedDividendInput),
-    [expectedDividendInput]
-  );
-  const dividendAmountInput = useMemo(
-    () => String(externalDividends.reduce((sum, dividend) => sum + dividend.amount, 0)),
-    [externalDividends]
-  );
+  // Fund inception = earliest capital or trade event (computed without the snapshot
+  // series to avoid a dependency cycle with the dividend add-back).
+  const inception = useMemo(() => {
+    const dates = [...trades.map((t) => t.tradeDate), ...cashFlows.map((c) => c.date)]
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+    return dates[0] ?? new Date().toISOString().slice(0, 10);
+  }, [trades, cashFlows]);
 
   // Splits come from Yahoo's price feed (the same source that adjusts the prices), merged
   // with the manual STOCK_SPLITS fallback and de-duped, so quantity and price adjustments
@@ -197,6 +188,17 @@ export default function App() {
     for (const quote of quotes) if (quote.price != null) map[quote.code] = quote.price;
     return map;
   }, [quotes]);
+
+  // Dividends: an imported CSV (actual received) wins; otherwise compute the realized
+  // add-back income from J-Quants (record-date shares × per-share rate, net of withholding).
+  // Passing nav=0 here is fine — realized income does not depend on nav; the forward yield
+  // (which does) is computed after nav below.
+  const computedDividends = useMemo(
+    () => computeDividends(dividendRecords, trades, 0, { trackingStart: inception, asOf: asOfDate }),
+    [dividendRecords, trades, inception, asOfDate]
+  );
+  const externalDividends: ExternalDividend[] =
+    importedDividends.length > 0 ? importedDividends : computedDividends.realized;
 
   const snapshots = useMemo(
     () =>
@@ -273,6 +275,13 @@ export default function App() {
       ),
     [externalDividends]
   );
+  // Forward yield needs nav, so it is computed here (after nav) rather than above.
+  const dividendForward = useMemo(
+    () => computeDividends(dividendRecords, trades, nav, { trackingStart: inception, asOf: asOfDate }),
+    [dividendRecords, trades, nav, inception, asOfDate]
+  );
+  const dividendSource: "csv" | "j-quants" | "none" =
+    importedDividends.length > 0 ? "csv" : Object.keys(dividendRecords).length > 0 ? "j-quants" : "none";
 
   const latestChartPoint = [...chartData].reverse().find((point) => point.portfolio !== null) ?? null;
   const vsTopix =
@@ -295,7 +304,7 @@ export default function App() {
   }
 
   function persistDividends(next: ExternalDividend[]) {
-    setExternalDividends(next);
+    setImportedDividends(next);
     writeLocalStorageValue(DIVIDENDS_STORAGE_KEY, JSON.stringify(next));
   }
 
@@ -353,16 +362,6 @@ export default function App() {
     writeLocalStorageValue(PERIOD_STORAGE_KEY, next);
   }
 
-  function handleDividendInputChange(value: string) {
-    const amount = parseMoney(value);
-    persistDividends([{ date: DIVIDEND_SEED_DATE, amount, note: "External account dividends" }]);
-  }
-
-  function handleExpectedDividendInputChange(value: string) {
-    setExpectedDividendInput(value);
-    writeLocalStorageValue(EXPECTED_ANNUAL_DIVIDEND_STORAGE_KEY, value);
-  }
-
   async function handleRefresh() {
     const refreshLedgerVersion = ledgerVersionRef.current;
     try {
@@ -376,12 +375,16 @@ export default function App() {
         return;
       }
 
-      // Resilient: one failing endpoint must not discard the others' data.
-      const [quotesResult, historyResult, benchmarksResult] = await Promise.allSettled([
-        fetchQuotesForHoldings(portfolio.holdings),
-        fetchHistoryForHoldings(historicalHoldings, "1y"),
-        fetchBenchmarks("1y")
-      ]);
+      // Resilient: one failing endpoint must not discard the others' data. Dividends are
+      // fetched for every name ever held (a dividend belongs to the record-date holder,
+      // even if the position was later sold).
+      const [quotesResult, historyResult, benchmarksResult, dividendsResult] =
+        await Promise.allSettled([
+          fetchQuotesForHoldings(portfolio.holdings),
+          fetchHistoryForHoldings(historicalHoldings, "1y"),
+          fetchBenchmarks("1y"),
+          fetchDividends(historicalHoldings.map((holding) => holding.code))
+        ]);
 
       if (refreshLedgerVersion !== ledgerVersionRef.current) return;
 
@@ -391,6 +394,7 @@ export default function App() {
         setSplitsByCode(historyResult.value.splitsByCode);
       }
       if (benchmarksResult.status === "fulfilled") setBenchmarks(benchmarksResult.value);
+      if (dividendsResult.status === "fulfilled") setDividendRecords(dividendsResult.value);
 
       const failures = [quotesResult, historyResult, benchmarksResult].filter(
         (result) => result.status === "rejected"
@@ -497,11 +501,9 @@ export default function App() {
         <DividendsPanel
           summary={dividendSummary}
           currency="JPY"
-          manualDividendInput={dividendAmountInput}
-          onManualDividendInputChange={handleDividendInputChange}
-          expectedDividendInput={expectedDividendInput}
-          expectedAnnualDividend={expectedAnnualDividend}
-          onExpectedDividendInputChange={handleExpectedDividendInputChange}
+          source={dividendSource}
+          forwardAnnualIncome={dividendForward.forwardAnnualIncome}
+          forwardYield={dividendForward.forwardYield}
         />
       </div>
     </main>

@@ -1,5 +1,6 @@
 import type { BenchmarkPoint, Holding, Quote } from "../types";
 import type { HoldingHistoryMap } from "../portfolio/history";
+import type { DividendRecord } from "../dividends/computeDividends";
 import { normalizeBenchmark } from "./benchmarks";
 
 type ServerQuote = {
@@ -107,6 +108,15 @@ export async function fetchHistoryForHoldings(
     }));
   }
   return { historyByCode, splitsByCode };
+}
+
+export async function fetchDividends(codes: string[]): Promise<Record<string, DividendRecord[]>> {
+  const unique = Array.from(new Set(codes.filter(Boolean)));
+  if (unique.length === 0) return {};
+  const data = await fetchJson<{ dividends: Record<string, DividendRecord[]> }>(
+    `/api/dividends?codes=${encodeURIComponent(unique.join(","))}`
+  );
+  return data.dividends ?? {};
 }
 
 export async function fetchBenchmarks(range = "1y"): Promise<{

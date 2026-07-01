@@ -97,6 +97,27 @@ export async function fetchJQuantsIndex(
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// Cash-dividend disclosures for a security. Keep only rows with a numeric per-share rate
+// and a real payment date (the actual paid dividends, not empty forecasts).
+export async function fetchJQuantsDividends(
+  code: string
+): Promise<Array<{ code: string; divRate: number; recDate: string; exDate: string; payDate: string; discDate: string }>> {
+  const data = await jqFetch("/fins/dividend", { code });
+  return data
+    .filter(
+      (row) => typeof row.DivRate === "number" && (row.DivRate as number) > 0 &&
+        /^\d{4}-\d{2}-\d{2}$/.test(String(row.PayDate ?? ""))
+    )
+    .map((row) => ({
+      code,
+      divRate: Number(row.DivRate),
+      recDate: String(row.RecDate ?? ""),
+      exDate: String(row.ExDate ?? ""),
+      payDate: String(row.PayDate ?? ""),
+      discDate: String(row.PubDate ?? "")
+    }));
+}
+
 export async function fetchJQuantsLatest(
   symbol: string
 ): Promise<{ price: number; asOf: string } | null> {

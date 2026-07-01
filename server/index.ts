@@ -7,6 +7,7 @@ import {
 } from "./yahooFinance.js";
 import {
   fetchJQuantsDailyBars,
+  fetchJQuantsDividends,
   fetchJQuantsIndex,
   fetchJQuantsLatest,
   hasJQuants
@@ -112,6 +113,28 @@ app.get("/api/history", async (req, res) => {
     res.json({ history });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to load price history";
+    res.status(500).json({ error: msg });
+  }
+});
+
+app.get("/api/dividends", async (req, res) => {
+  const codes = String(req.query.codes ?? "")
+    .split(",")
+    .map((code) => code.trim())
+    .filter(Boolean);
+
+  if (!hasJQuants()) {
+    res.json({ dividends: {} });
+    return;
+  }
+
+  try {
+    const entries = await Promise.all(
+      codes.map(async (code) => [code, await fetchJQuantsDividends(code)] as const)
+    );
+    res.json({ dividends: Object.fromEntries(entries) });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Failed to load dividends";
     res.status(500).json({ error: msg });
   }
 });

@@ -1,71 +1,61 @@
 import { formatCurrency } from "../format";
 import type { Currency, DividendSummary } from "../types";
 
+const SOURCE_LABEL: Record<string, string> = {
+  csv: "imported CSV",
+  "j-quants": "J-Quants estimate (net 15.315%)",
+  none: "refresh to load"
+};
+
+function pct(value: number | null): string {
+  return value === null ? "N/A" : `${(value * 100).toFixed(2)}%`;
+}
+
 export function DividendsPanel({
   summary,
   currency,
-  manualDividendInput,
-  onManualDividendInputChange,
-  expectedDividendInput,
-  expectedAnnualDividend,
-  onExpectedDividendInputChange
+  source,
+  forwardAnnualIncome,
+  forwardYield
 }: {
   summary: DividendSummary;
   currency: Currency;
-  manualDividendInput: string;
-  onManualDividendInputChange: (value: string) => void;
-  expectedDividendInput: string;
-  expectedAnnualDividend: number;
-  onExpectedDividendInputChange: (value: string) => void;
+  source: "csv" | "j-quants" | "none";
+  forwardAnnualIncome: number;
+  forwardYield: number | null;
 }) {
   return (
     <section className="panel dividends-panel">
       <div className="panel-heading">
         <div>
-          <h2>Dividends</h2>
-          <p className={`dividend-state dividend-state-${summary.state}`}>
-            State: <strong>{summary.state}</strong>
-          </p>
+          <h2>Dividends &amp; yield</h2>
+          <p className="subtle">Realized income (added to total return) · source: {SOURCE_LABEL[source]}</p>
         </div>
       </div>
-      <p className="subtle">{summary.message}</p>
-      <div className="manual-dividend-fields">
-        <label className="manual-dividend-field">
-          <span>Manual YTD dividend</span>
-          <input
-            aria-label="Manual YTD dividend"
-            inputMode="numeric"
-            spellCheck={false}
-            value={manualDividendInput}
-            onChange={(event) => onManualDividendInputChange(event.currentTarget.value)}
-          />
-        </label>
-        <label className="manual-dividend-field">
-          <span>Expected yearly dividend</span>
-          <input
-            aria-label="Expected yearly dividend"
-            inputMode="numeric"
-            spellCheck={false}
-            value={expectedDividendInput}
-            onChange={(event) => onExpectedDividendInputChange(event.currentTarget.value)}
-          />
-        </label>
-      </div>
+
       <strong className="dividend-total">{formatCurrency(summary.yearToDate, currency)}</strong>
+      <p className="dividend-state">Realized to date</p>
+
       <div className="dividend-grid">
         <div>
-          <span>Expected yearly</span>
-          <strong>{formatCurrency(expectedAnnualDividend, currency)}</strong>
+          <span>Forward 12M income</span>
+          <strong>{formatCurrency(forwardAnnualIncome, currency)}</strong>
+        </div>
+        <div>
+          <span>Portfolio yield</span>
+          <strong>{pct(forwardYield)}</strong>
         </div>
         {Object.entries(summary.byQuarter).length === 0 ? (
-          <p className="empty-inline">No quarterly dividend rows imported yet.</p>
+          <p className="empty-inline">No dividends recorded yet.</p>
         ) : (
-          Object.entries(summary.byQuarter).map(([quarter, amount]) => (
-            <div key={quarter}>
-              <span>{quarter}</span>
-              <strong>{formatCurrency(amount, currency)}</strong>
-            </div>
-          ))
+          Object.entries(summary.byQuarter)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([quarter, amount]) => (
+              <div key={quarter}>
+                <span>{quarter}</span>
+                <strong>{formatCurrency(amount, currency)}</strong>
+              </div>
+            ))
         )}
       </div>
     </section>
