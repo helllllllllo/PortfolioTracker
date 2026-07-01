@@ -19,6 +19,7 @@ export function buildCurrentSnapshot(input: {
     cash: input.cash,
     holdingsValue: input.holdingsValue,
     nav,
+    navTotalReturn: nav,
     units,
     unitNav: units === 0 ? 100 : nav / units
   };
@@ -35,6 +36,7 @@ export function applyCashFlowToSnapshot(
     ...snapshot,
     cash,
     nav,
+    navTotalReturn: nav,
     units: nav / unitNav,
     unitNav
   };
@@ -54,6 +56,7 @@ export function applyInternalIncomeToSnapshot(
     ...snapshot,
     cash,
     nav,
+    navTotalReturn: nav,
     unitNav: snapshot.units === 0 ? snapshot.unitNav || 100 : nav / snapshot.units
   };
 }
@@ -114,7 +117,7 @@ export function buildUnitReturnSeries(snapshots: PortfolioSnapshot[]): Portfolio
   return ordered.map((snapshot) => {
     const nav = snapshot.cash + snapshot.holdingsValue;
     const unitNav = snapshot.units === 0 ? 100 : nav / snapshot.units;
-    return { ...snapshot, nav, unitNav };
+    return { ...snapshot, nav, navTotalReturn: nav, unitNav };
   });
 }
 

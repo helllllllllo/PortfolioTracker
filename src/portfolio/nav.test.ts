@@ -33,6 +33,7 @@ describe("NAV calculations", () => {
       cash: 144511,
       holdingsValue: 65000,
       nav: 209511,
+      navTotalReturn: 209511,
       units: 1000,
       unitNav: 209.511
     });

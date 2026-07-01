@@ -54,9 +54,10 @@ export type PortfolioSnapshot = {
   date: string;
   cash: number;
   holdingsValue: number;
-  nav: number;
+  nav: number; // AUM = cash + holdingsValue
+  navTotalReturn: number; // nav + cumulative added-back dividends
   units: number;
-  unitNav: number;
+  unitNav: number; // navTotalReturn / units (total-return unit price)
 };
 
 export type BenchmarkPoint = {
