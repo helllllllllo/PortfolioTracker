@@ -1,0 +1,27 @@
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+import { PerformanceChart } from "./PerformanceChart";
+import type { NormalizedPerformancePoint } from "../types";
+
+describe("PerformanceChart", () => {
+  it("shows latest, excess, best day, and worst day analytics", () => {
+    const data: NormalizedPerformancePoint[] = [
+      { date: "2026-01-02", portfolio: 100, topix: 100, nikkei225: 100 },
+      { date: "2026-01-03", portfolio: 106, topix: 103, nikkei225: 104 },
+      { date: "2026-01-04", portfolio: 102, topix: 104, nikkei225: 105 }
+    ];
+
+    render(<PerformanceChart data={data} />);
+
+    expect(screen.getByText(/latest/i)).toBeInTheDocument();
+    expect(screen.getByText(/excess vs topix/i)).toBeInTheDocument();
+    expect(screen.getByText(/excess vs nikkei/i)).toBeInTheDocument();
+    expect(screen.getByText(/best day/i)).toBeInTheDocument();
+    expect(screen.getByText(/worst day/i)).toBeInTheDocument();
+    expect(screen.getByText("102.0")).toBeInTheDocument();
+    expect(screen.getByText("-2.0 pts")).toBeInTheDocument();
+    expect(screen.getByText("-3.0 pts")).toBeInTheDocument();
+    expect(screen.getByText("+6.0 pts")).toBeInTheDocument();
+    expect(screen.getByText("-4.0 pts")).toBeInTheDocument();
+  });
+});
