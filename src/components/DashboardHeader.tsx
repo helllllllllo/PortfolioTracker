@@ -2,12 +2,21 @@ import { RefreshCw, Upload } from "lucide-react";
 
 type Props = {
   fileName: string | null;
+  cashFlowFileName: string | null;
   quoteStatus: string;
   onImport: (file: File) => void;
+  onImportCashFlows: (file: File) => void;
   onRefresh: () => void;
 };
 
-export function DashboardHeader({ fileName, quoteStatus, onImport, onRefresh }: Props) {
+export function DashboardHeader({
+  fileName,
+  cashFlowFileName,
+  quoteStatus,
+  onImport,
+  onImportCashFlows,
+  onRefresh
+}: Props) {
   return (
     <header className="topbar">
       <div className="topbar-title">
@@ -15,7 +24,8 @@ export function DashboardHeader({ fileName, quoteStatus, onImport, onRefresh }: 
         <h1>Portfolio Dashboard</h1>
         <div className="ledger-line">
           <span className="brand-mark">Hiroshi Capital</span>
-          <span>{fileName ? `Ledger: ${fileName}` : "No CSV imported yet"}</span>
+          <span>{fileName ? `Trades: ${fileName}` : "No trade CSV imported yet"}</span>
+          <span>{cashFlowFileName ? `Cash flows: ${cashFlowFileName}` : "No cash-flow CSV imported yet"}</span>
         </div>
       </div>
       <div className="topbar-actions">
@@ -25,14 +35,28 @@ export function DashboardHeader({ fileName, quoteStatus, onImport, onRefresh }: 
         </span>
         <label className="file-button">
           <Upload size={16} aria-hidden="true" />
-          <span>Import CSV</span>
+          <span>Import trades</span>
           <input
-            aria-label="Import CSV"
+            aria-label="Import trades CSV"
             type="file"
             accept=".csv,text/csv"
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
               if (file) onImport(file);
+              event.currentTarget.value = "";
+            }}
+          />
+        </label>
+        <label className="file-button">
+          <Upload size={16} aria-hidden="true" />
+          <span>Import cash flows</span>
+          <input
+            aria-label="Import cash flows CSV"
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              if (file) onImportCashFlows(file);
               event.currentTarget.value = "";
             }}
           />
