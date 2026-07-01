@@ -174,30 +174,24 @@ describe("buildPortfolioState", () => {
       }
     ];
 
+    // Trades are normalized into split-adjusted space (to match Yahoo's split-adjusted
+    // price series), so the holding is expressed in post-split terms regardless of the
+    // as-of date. Cost basis is preserved; quantity doubles and average cost halves.
     const beforeSplit = buildPortfolioState(hitTrades, "2026-06-28").holdings[0];
     const afterSplit = buildPortfolioState(hitTrades, "2026-06-29").holdings[0];
 
-    expect(beforeSplit).toEqual(
-      expect.objectContaining({
-        code: "378A",
-        name: "ヒット",
-        market: "東証",
-        quantity: 3000,
-        costBasis: 7571500
-      })
-    );
-    expect(beforeSplit.averageCost).toBeCloseTo(2523.8333333333335, 12);
-
-    expect(afterSplit).toEqual(
-      expect.objectContaining({
-        code: "378A",
-        name: "ヒット",
-        market: "東証",
-        quantity: 6000,
-        costBasis: 7571500
-      })
-    );
-    expect(afterSplit.averageCost).toBeCloseTo(1261.9166666666667, 12);
+    for (const holding of [beforeSplit, afterSplit]) {
+      expect(holding).toEqual(
+        expect.objectContaining({
+          code: "378A",
+          name: "ヒット",
+          market: "東証",
+          quantity: 6000,
+          costBasis: 7571500
+        })
+      );
+      expect(holding.averageCost).toBeCloseTo(1261.9166666666667, 12);
+    }
   });
 
   it("aggregates the same code across 東証 / PTS / 名証 into one holding", () => {

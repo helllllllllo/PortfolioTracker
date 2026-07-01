@@ -1,4 +1,4 @@
-import type { Holding } from "../types";
+import type { Holding, Trade } from "../types";
 
 type StockSplit = {
   code: string;
@@ -15,6 +15,26 @@ export const STOCK_SPLITS: StockSplit[] = [
     ratio: 2
   }
 ];
+
+// Yahoo's daily price series is split-adjusted for the whole history. To value a
+// position consistently against those prices, express every executed trade in the
+// same split-adjusted basis: a buy/sell dated BEFORE a split's ex-date has its
+// quantity multiplied and price divided by the ratio (gross amount is preserved).
+// This replaces ex-date-gated quantity doubling, which mismatched the adjusted prices
+// and halved a pre-split holding's value.
+export function splitAdjustTrades(trades: Trade[]): Trade[] {
+  return trades.map((trade) => {
+    let quantity = trade.quantity;
+    let price = trade.price;
+    for (const split of STOCK_SPLITS) {
+      if (trade.code === split.code && trade.tradeDate < split.exDate) {
+        quantity *= split.ratio;
+        price /= split.ratio;
+      }
+    }
+    return quantity === trade.quantity ? trade : { ...trade, quantity, price };
+  });
+}
 
 export function canonicalHoldingMarket(rawMarket: string): string {
   if (rawMarket.includes("名証")) return "名証";

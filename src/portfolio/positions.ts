@@ -1,8 +1,5 @@
 import type { Holding, Trade } from "../types";
-import {
-  applyEligibleStockSplitsToHoldings,
-  canonicalHoldingMarket
-} from "./corporateActions";
+import { canonicalHoldingMarket, splitAdjustTrades } from "./corporateActions";
 
 type MutableHolding = Holding;
 
@@ -18,21 +15,18 @@ export function buildPortfolioState(trades: Trade[], asOfDate?: string): {
   warnings: string[];
 } {
   const effectiveAsOfDate = asOfDate ?? new Date().toISOString().slice(0, 10);
-  const sorted = [...trades]
+  const sorted = splitAdjustTrades(trades)
     .filter((trade) => trade.tradeDate <= effectiveAsOfDate)
     .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate));
   const totalBuyAmount = sorted
     .filter((trade) => trade.side === "buy")
     .reduce((sum, trade) => sum + trade.grossAmount, 0);
   const byId = new Map<string, MutableHolding>();
-  const appliedSplitIds = new Set<string>();
   const warnings: string[] = [];
   let cash = totalBuyAmount;
   let realizedPnl = 0;
 
   for (const trade of sorted) {
-    applyEligibleStockSplitsToHoldings(byId, appliedSplitIds, trade.tradeDate);
-
     const market = canonicalHoldingMarket(trade.market);
     const id = holdingId(trade.code, market);
     const holding = byId.get(id) ?? {
@@ -77,8 +71,6 @@ export function buildPortfolioState(trades: Trade[], asOfDate?: string): {
 
     byId.set(id, holding);
   }
-
-  applyEligibleStockSplitsToHoldings(byId, appliedSplitIds, effectiveAsOfDate);
 
   const holdings = Array.from(byId.values())
     .filter((holding) => holding.quantity > 0)

@@ -1,5 +1,5 @@
 import type { CashFlow, ExternalDividend, PortfolioSnapshot, Trade } from "../types";
-import { STOCK_SPLITS } from "./corporateActions";
+import { splitAdjustTrades } from "./corporateActions";
 
 export const UNIT_BASE = 100;
 
@@ -51,7 +51,8 @@ function applyTrade(positions: Map<string, Position>, trade: Trade, onCash: (del
 }
 
 export function buildFundSnapshots(inputs: FundInputs): PortfolioSnapshot[] {
-  const { trades, cashFlows, dividends, historyByCode, latestPriceByCode, asOfDate } = inputs;
+  const { cashFlows, dividends, historyByCode, latestPriceByCode, asOfDate } = inputs;
+  const trades = splitAdjustTrades(inputs.trades);
 
   const eventDates = new Set<string>();
   for (const t of trades) if (t.tradeDate <= asOfDate) eventDates.add(t.tradeDate);
@@ -80,7 +81,6 @@ export function buildFundSnapshots(inputs: FundInputs): PortfolioSnapshot[] {
   const divsByDate = groupByDate(dividends, (d) => d.date, asOfDate);
 
   const positions = new Map<string, Position>();
-  const appliedSplits = new Set<string>();
   let cash = 0;
   let units = 0;
   let cumulativeDividends = 0;
@@ -106,24 +106,9 @@ export function buildFundSnapshots(inputs: FundInputs): PortfolioSnapshot[] {
     return sum;
   };
 
-  const applySplitsThrough = (date: string): void => {
-    for (const split of STOCK_SPLITS) {
-      const id = `${split.code}:${split.exDate}`;
-      if (appliedSplits.has(id) || split.exDate > date) continue;
-      const pos = positions.get(split.code);
-      if (pos && pos.qty > 0) {
-        pos.qty *= split.ratio;
-        pos.avgCost = pos.costBasis / pos.qty;
-      }
-      appliedSplits.add(id);
-    }
-  };
-
   const snapshots: PortfolioSnapshot[] = [];
 
   for (const date of dates) {
-    applySplitsThrough(date);
-
     // Pre-flow unit price for issuing/redeeming units at the prevailing price
     const preHoldings = markHoldings(date);
     const preNavTR = preHoldings + cash + cumulativeDividends;

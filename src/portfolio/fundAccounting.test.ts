@@ -95,6 +95,27 @@ describe("buildFundSnapshots", () => {
     expect(last.unitNav).toBeCloseTo(110, 4);
   });
 
+  it("values a pre-split holding at full value against split-adjusted prices (no ex-date jump)", () => {
+    // 378A splits 2:1 on 2026-06-29 (see STOCK_SPLITS). Bought 1000 sh at the executed
+    // price 2000 (= ¥2,000,000). Yahoo's close is split-adjusted (~1000) across the whole
+    // window, so value must be ¥2,000,000 on every date, with no artificial jump on 06-29.
+    const history = { "378A": [
+      { date: "2026-06-01", close: 1000 },
+      { date: "2026-06-28", close: 1000 },
+      { date: "2026-06-29", close: 1000 },
+      { date: "2026-07-01", close: 1000 },
+    ] };
+    const s = buildFundSnapshots({
+      trades: [buy("2026-06-01", "378A", 1000, 2000)],
+      cashFlows: [contrib("2026-06-01", 2_000_000)],
+      dividends: [],
+      historyByCode: history,
+      asOfDate: "2026-07-01",
+    });
+    for (const snap of s) expect(snap.holdingsValue).toBeCloseTo(2_000_000, 0);
+    expect(s.at(-1)!.unitNav).toBeCloseTo(100, 4); // flat price ⇒ 0% return, not a +100% jump
+  });
+
   it("lending income raises both NAV and total return", () => {
     const income: CashFlow = {
       date: "2026-02-01",
