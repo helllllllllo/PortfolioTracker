@@ -1274,3 +1274,44 @@ tbody tr:hover {
     background: #eef2ef;
   }
 }
+
+.contributors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.contributor-head {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.contributor-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid #eef2f0;
+}
+
+.contributor-row strong {
+  display: block;
+  color: #16302b;
+  font-size: 13px;
+}
+
+.contributor-row > div > span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.contributor-pnl {
+  font-weight: 800;
+  font-size: 13px;
+  white-space: nowrap;
+  color: #16302b;
+}

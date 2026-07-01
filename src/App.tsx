@@ -5,6 +5,7 @@ import { DividendsPanel } from "./components/DividendsPanel";
 import { HoldingsTable } from "./components/HoldingsTable";
 import { PerformanceChart } from "./components/PerformanceChart";
 import { QuarterlyReturnsTable } from "./components/QuarterlyReturnsTable";
+import { ContributorsPanel } from "./components/ContributorsPanel";
 import { SummaryStrip } from "./components/SummaryStrip";
 import { DownloadPngButton } from "./components/DownloadPngButton";
 import { formatCurrency } from "./format";
@@ -29,6 +30,7 @@ import {
 import type { SplitEvent } from "./portfolio/corporateActions";
 import { priceHoldings } from "./market/quotes";
 import { buildAllocationSlices } from "./portfolio/allocation";
+import { buildAttribution } from "./portfolio/attribution";
 import { parseSbiExecutionCsv } from "./data/parseSbiCsv";
 import { parseSbiCashFlowCsv } from "./data/parseSbiCashFlowCsv";
 import type { BenchmarkPoint, CashFlow, ExternalDividend, Quote, Trade } from "./types";
@@ -231,6 +233,10 @@ export default function App() {
   const allocationSlices = useMemo(
     () => buildAllocationSlices(pricedHoldings, cash, "JPY"),
     [pricedHoldings, cash]
+  );
+  const attribution = useMemo(
+    () => buildAttribution(trades, pricedHoldings, splits),
+    [trades, pricedHoldings, splits]
   );
 
   const dividendSummary = useMemo(
@@ -444,6 +450,7 @@ export default function App() {
       <div className="content-grid">
         <HoldingsTable holdings={pricedHoldings} currency="JPY" />
         <QuarterlyReturnsTable rows={quarterly} benchmarkLabels={BENCHMARK_LABELS} />
+        <ContributorsPanel attribution={attribution} currency="JPY" />
         <DividendsPanel
           summary={dividendSummary}
           currency="JPY"
