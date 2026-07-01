@@ -185,7 +185,8 @@ export async function fetchYahooLatest(symbol: string): Promise<YahooQuote> {
 
 export async function fetchYahooDailySeries(
   symbol: string,
-  range = "1y"
+  range = "1y",
+  useAdjClose = false
 ): Promise<Array<{ date: string; value: number }>> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
     symbol
@@ -196,19 +197,73 @@ export async function fetchYahooDailySeries(
 
     if (!response.ok) return [];
 
-    const json = (await response.json()) as YahooChartResult;
+    const json = (await response.json()) as YahooChartResult & {
+      chart?: {
+        result?: Array<{
+          indicators?: { adjclose?: Array<{ adjclose?: Array<number | null> }> };
+        }>;
+      };
+    };
     const result = json.chart?.result?.[0];
     const timestamps = result?.timestamp ?? [];
     const closes = result?.indicators?.quote?.[0]?.close ?? [];
+    const adjCloses =
+      (result as { indicators?: { adjclose?: Array<{ adjclose?: Array<number | null> }> } })
+        ?.indicators?.adjclose?.[0]?.adjclose ?? [];
 
     return timestamps
+      .map((timestamp, index) => ({
+        date: new Date(timestamp * 1000).toISOString().slice(0, 10),
+        value: (useAdjClose ? adjCloses[index] ?? closes[index] : closes[index]) ?? 0
+      }))
+      .filter((row) => row.value > 0);
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchYahooHistoryWithSplits(
+  symbol: string,
+  range = "1y"
+): Promise<{ rows: Array<{ date: string; value: number }>; splits: Array<{ date: string; ratio: number }> }> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+    symbol
+  )}?range=${encodeURIComponent(range)}&interval=1d&events=split`;
+
+  try {
+    const response = await fetch(url, { headers: yahooHeaders() });
+    if (!response.ok) return { rows: [], splits: [] };
+
+    const json = (await response.json()) as YahooChartResult & {
+      chart?: {
+        result?: Array<{
+          events?: { splits?: Record<string, { date?: number; numerator?: number; denominator?: number }> };
+        }>;
+      };
+    };
+    const result = json.chart?.result?.[0];
+    const timestamps = result?.timestamp ?? [];
+    const closes = result?.indicators?.quote?.[0]?.close ?? [];
+    const rows = timestamps
       .map((timestamp, index) => ({
         date: new Date(timestamp * 1000).toISOString().slice(0, 10),
         value: closes[index] ?? 0
       }))
       .filter((row) => row.value > 0);
+
+    const rawSplits =
+      (result as { events?: { splits?: Record<string, { date?: number; numerator?: number; denominator?: number }> } })
+        ?.events?.splits ?? {};
+    const splits = Object.values(rawSplits)
+      .map((split) => ({
+        date: split.date ? new Date(split.date * 1000).toISOString().slice(0, 10) : "",
+        ratio: split.numerator && split.denominator ? split.numerator / split.denominator : 0
+      }))
+      .filter((split) => split.date !== "" && split.ratio > 0);
+
+    return { rows, splits };
   } catch {
-    return [];
+    return { rows: [], splits: [] };
   }
 }
 

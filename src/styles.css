@@ -321,6 +321,31 @@ button:hover,
   color-scheme: dark;
 }
 
+.period-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.period-button {
+  min-height: 26px;
+  padding: 3px 9px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+  background: rgba(5, 12, 11, 0.4);
+  color: #adc2bb;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.period-button.is-active {
+  border-color: rgba(20, 184, 166, 0.75);
+  background: rgba(20, 184, 166, 0.16);
+  color: #bdfcf1;
+}
+
 .insight-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.52fr) minmax(360px, 0.88fr);
@@ -808,4 +833,485 @@ tbody tr:hover {
   .reconciliation-flow {
     grid-template-columns: 1fr;
   }
+}
+
+/* ---- Report-grade light "tearsheet" cards (performance + allocation) ---- */
+.report-card {
+  background: #ffffff;
+  border: 1px solid #e6ece8;
+  box-shadow: 0 18px 44px rgba(6, 17, 15, 0.30);
+  color: #16302b;
+}
+
+.report-card.chart-panel,
+.report-card.allocation-panel {
+  background: #ffffff;
+}
+
+.report-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.report-eyebrow {
+  margin: 0;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.report-card h2 {
+  margin: 3px 0 0;
+  color: #0f1f1c;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+}
+
+.report-sub {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.download-png {
+  min-height: 32px;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #cbd5d0;
+  border-radius: 8px;
+  background: #f6faf8;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: none;
+}
+
+.download-png:hover {
+  border-color: #0f766e;
+  background: #e9fbf5;
+  box-shadow: none;
+  transform: none;
+}
+
+.report-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.report-stat {
+  border: 1px solid #eaefec;
+  border-radius: 8px;
+  background: #f8faf9;
+  padding: 10px 12px;
+}
+
+.report-stat span {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.report-stat strong {
+  display: block;
+  margin-top: 6px;
+  color: #0f1f1c;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.stat-positive strong {
+  color: #0f766e;
+}
+
+.stat-negative strong {
+  color: #dc2626;
+}
+
+/* Allocation list on a light card */
+.report-card .allocation-total span {
+  color: #64748b;
+}
+
+.report-card .allocation-total strong {
+  color: #0f1f1c;
+}
+
+.report-card .allocation-row {
+  border: 1px solid #eef2f0;
+  background: #f8faf9;
+}
+
+.report-card .allocation-row strong {
+  color: #16302b;
+}
+
+.report-card .allocation-row div > span,
+.report-card .allocation-values span {
+  color: #64748b;
+}
+
+.report-card .empty-inline {
+  color: #64748b;
+}
+
+/* Composed quarterly tearsheet export container */
+.tearsheet-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 4px 0 14px;
+}
+
+.tearsheet-download {
+  min-height: 40px;
+  gap: 8px;
+  background: #0f766e;
+  color: #effdf9;
+  border-color: #14b8a6;
+  font-weight: 900;
+}
+
+.report-tearsheet {
+  background: #eef2ef;
+  border: 1px solid #dde5e0;
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.report-tearsheet .insight-grid {
+  margin-bottom: 0;
+}
+
+.tearsheet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 4px 6px 16px;
+}
+
+.tearsheet-header h2 {
+  margin: 3px 0 0;
+  color: #0f1f1c;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+}
+
+.tearsheet-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+}
+
+.tearsheet-kpis span {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tearsheet-kpis strong {
+  display: block;
+  margin-top: 5px;
+  color: #0f1f1c;
+  font-size: 21px;
+  line-height: 1.05;
+}
+
+.warning-banner {
+  margin-bottom: 16px;
+  border: 1px solid rgba(217, 119, 6, 0.5);
+  background: rgba(217, 119, 6, 0.12);
+  color: #7c3f00;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+}
+
+.warning-banner ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.warning-banner strong {
+  color: #b45309;
+}
+
+/* ============================================================
+   LIGHT THEME — re-skins the dark "cockpit" chrome to match the
+   light institutional report cards. (Layout/spacing unchanged.)
+   ============================================================ */
+:root {
+  color: #16302b;
+  background: #eef2ef;
+}
+
+body {
+  background: #eef2ef;
+}
+
+button,
+.file-button {
+  background: #f6faf8;
+  color: #16302b;
+  border-color: #cbd5d0;
+  box-shadow: none;
+}
+
+button:hover,
+.file-button:hover {
+  background: #e9fbf5;
+  border-color: #0f766e;
+  box-shadow: none;
+}
+
+.topbar {
+  background: #ffffff;
+  border-color: #e6ece8;
+  box-shadow: 0 12px 32px rgba(6, 17, 15, 0.10);
+}
+
+.topbar::after {
+  background: linear-gradient(90deg, transparent, rgba(15, 118, 110, 0.55), transparent);
+}
+
+.topbar h1 {
+  color: #0f1f1c;
+}
+
+.eyebrow,
+.panel-kicker {
+  color: #0f766e;
+}
+
+.brand-mark {
+  color: #b45309;
+}
+
+.ledger-line {
+  color: #64748b;
+}
+
+.topbar-actions button {
+  background: #0f766e;
+  color: #ffffff;
+  border-color: #0f766e;
+}
+
+.topbar-actions button:hover {
+  background: #0b5c55;
+}
+
+.topbar-actions .file-button {
+  background: #f6faf8;
+  color: #16302b;
+}
+
+.status-pill {
+  border-color: rgba(15, 118, 110, 0.3);
+  background: rgba(15, 118, 110, 0.10);
+  color: #0f766e;
+}
+
+.status-dot {
+  background: #0f766e;
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.14);
+}
+
+.summary-card,
+.panel {
+  background: #ffffff;
+  border-color: #e6ece8;
+  box-shadow: 0 10px 26px rgba(6, 17, 15, 0.08);
+}
+
+.summary-card-primary {
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.12), rgba(37, 99, 235, 0.05)),
+    #ffffff;
+}
+
+.summary-card::before {
+  background: #d3ddd8;
+}
+
+.summary-card-primary::before {
+  background: linear-gradient(90deg, #0f766e, #2563eb, #d97706);
+}
+
+.summary-grid span {
+  color: #64748b;
+}
+
+.summary-grid strong {
+  color: #0f1f1c;
+}
+
+.metric-positive strong,
+.number-positive {
+  color: #0f766e;
+}
+
+.metric-negative strong,
+.number-negative {
+  color: #dc2626;
+}
+
+.number-neutral {
+  color: #16302b;
+}
+
+.panel h2 {
+  color: #0f1f1c;
+}
+
+.subtle {
+  color: #64748b;
+}
+
+.period-button {
+  background: #f4f7f5;
+  border-color: #cbd5d0;
+  color: #475569;
+}
+
+.period-button.is-active {
+  border-color: #0f766e;
+  background: rgba(15, 118, 110, 0.14);
+  color: #0f766e;
+}
+
+th {
+  color: #64748b;
+  background: #f4f7f5;
+}
+
+td {
+  color: #1f3a34;
+}
+
+th,
+td {
+  border-bottom-color: #eaefec;
+}
+
+tbody tr:hover {
+  background: rgba(15, 118, 110, 0.06);
+}
+
+.dividend-total {
+  color: #0f1f1c;
+}
+
+.dividend-state {
+  color: #64748b;
+}
+
+.dividend-state strong {
+  color: #b45309;
+}
+
+.manual-dividend-field {
+  border-color: #e6ece8;
+  background: #f8faf9;
+}
+
+.manual-dividend-field span,
+.dividend-grid span {
+  color: #64748b;
+}
+
+.manual-dividend-field input,
+.dividend-grid strong {
+  color: #0f1f1c;
+}
+
+.quote-delayed,
+.quote-live-ish {
+  border-color: rgba(15, 118, 110, 0.3);
+  background: rgba(15, 118, 110, 0.12);
+  color: #0f766e;
+}
+
+.quote-stale {
+  border-color: rgba(217, 119, 6, 0.4);
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+}
+
+.quote-missing {
+  border-color: rgba(220, 38, 38, 0.4);
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
+.quote-manual {
+  border-color: rgba(37, 99, 235, 0.38);
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.empty-table-cell,
+.empty-inline {
+  color: #64748b;
+}
+
+@media (max-width: 1180px) {
+  body {
+    background: #eef2ef;
+  }
+}
+
+.contributors-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.contributor-head {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.contributor-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid #eef2f0;
+}
+
+.contributor-row strong {
+  display: block;
+  color: #16302b;
+  font-size: 13px;
+}
+
+.contributor-row > div > span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.contributor-pnl {
+  font-weight: 800;
+  font-size: 13px;
+  white-space: nowrap;
+  color: #16302b;
 }

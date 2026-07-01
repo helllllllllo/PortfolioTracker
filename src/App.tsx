@@ -1,60 +1,63 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DashboardHeader } from "./components/DashboardHeader";
 import { AllocationPieChart } from "./components/AllocationPieChart";
 import { DividendsPanel } from "./components/DividendsPanel";
 import { HoldingsTable } from "./components/HoldingsTable";
 import { PerformanceChart } from "./components/PerformanceChart";
-import { PerformanceMethodPanel } from "./components/PerformanceMethodPanel";
-import type { ManualAdjustmentRow } from "./components/PerformanceMethodPanel";
 import { QuarterlyReturnsTable } from "./components/QuarterlyReturnsTable";
+import { ContributorsPanel } from "./components/ContributorsPanel";
 import { SummaryStrip } from "./components/SummaryStrip";
+import { DownloadPngButton } from "./components/DownloadPngButton";
+import { formatCurrency } from "./format";
 import { summarizeDividends } from "./dividends/dividends";
+import type { DividendRow } from "./dividends/dividends";
 import { fetchBenchmarks, fetchHistoryForHoldings, fetchQuotesForHoldings } from "./market/apiClient";
-import type { BenchmarkMode } from "./market/apiClient";
 import {
-  applyCashFlowToSnapshot,
-  applyInternalIncomeToSnapshot,
-  buildCurrentSnapshot,
-  investmentChangeBetweenSnapshots,
-  quarterlyReturns
-} from "./portfolio/nav";
-import { buildHistoricalSnapshots, buildPerformanceChartData } from "./portfolio/history";
-import { calculateInvestmentChange, calculateNetContributions } from "./portfolio/performance";
+  buildFundSnapshots,
+  periodStartDate,
+  timeWeightedReturn
+} from "./portfolio/fundAccounting";
+import type { PeriodKey, PriceHistory } from "./portfolio/fundAccounting";
+import { moneyWeightedReturn } from "./portfolio/irr";
+import { quarterlyReturns } from "./portfolio/nav";
+import { buildPerformanceChartData } from "./portfolio/history";
+import { mergeStoredSnapshots } from "./portfolio/navStore";
 import { buildHistoricalHoldings, buildPortfolioState } from "./portfolio/positions";
+import {
+  STOCK_SPLITS,
+  mergeSplitEvents,
+  reconcileTradesAgainstPrices
+} from "./portfolio/corporateActions";
+import type { SplitEvent } from "./portfolio/corporateActions";
 import { priceHoldings } from "./market/quotes";
 import { buildAllocationSlices } from "./portfolio/allocation";
-import { FUND_TRACKING_START_DATE } from "./portfolio/constants";
-import type { BenchmarkPoint, Currency, DividendSummary, Quote, Trade } from "./types";
-import { parsePortfolioCsv } from "./data/parseSbiCsv";
-import type { DividendRow } from "./dividends/dividends";
+import { buildAttribution } from "./portfolio/attribution";
+import { parseSbiExecutionCsv } from "./data/parseSbiCsv";
+import { parseSbiCashFlowCsv } from "./data/parseSbiCashFlowCsv";
+import { parseDividendCsv } from "./data/parseDividendCsv";
+import type { BenchmarkPoint, CashFlow, ExternalDividend, PortfolioSnapshot, Quote, Trade } from "./types";
 import "./styles.css";
 
 const TRADES_STORAGE_KEY = "portfolio:trades";
-const CSV_NAME_STORAGE_KEY = "portfolio:lastCsvName";
-const MANUAL_CASH_STORAGE_KEY = "portfolio:manualCash";
-const SOURCE_STORAGE_KEY = "portfolio:source";
-const DIVIDENDS_STORAGE_KEY = "portfolio:dividends";
-const TRACKING_START_STORAGE_KEY = "portfolio:trackingStartDate";
-const MANUAL_DIVIDEND_STORAGE_KEY = "portfolio:manualDividendYtd";
+const TRADE_CSV_NAME_STORAGE_KEY = "portfolio:lastCsvName";
+const CASHFLOWS_STORAGE_KEY = "portfolio:cashFlows";
+const CASHFLOW_CSV_NAME_STORAGE_KEY = "portfolio:cashFlowCsvName";
+const DIVIDENDS_STORAGE_KEY = "portfolio:externalDividends";
 const EXPECTED_ANNUAL_DIVIDEND_STORAGE_KEY = "portfolio:expectedAnnualDividend";
-const DEFAULT_SBI_MANUAL_DIVIDEND_YTD = "119511";
+const PERIOD_STORAGE_KEY = "portfolio:period";
+const SNAPSHOTS_STORAGE_KEY = "portfolio:navSnapshots";
 
-type PortfolioSource = "sbi" | "schwab";
+const DIVIDEND_SEED_DATE = "2026-06-29";
+const DEFAULT_EXTERNAL_DIVIDENDS: ExternalDividend[] = [
+  { date: DIVIDEND_SEED_DATE, amount: 119511, note: "H1 2026 dividends (other account)" }
+];
+
+const BENCHMARK_LABELS = { primary: "TOPIX (TR)", secondary: "Nikkei 225 (TR)" };
 
 function readLocalStorageValue(key: string): string | null {
   if (typeof window === "undefined") return null;
-  const storage = window.localStorage as unknown;
-  if (
-    storage === null ||
-    typeof storage !== "object" ||
-    !("getItem" in storage) ||
-    typeof (storage as Storage).getItem !== "function"
-  ) {
-    return null;
-  }
-
   try {
-    return (storage as Storage).getItem(key);
+    return window.localStorage?.getItem(key) ?? null;
   } catch {
     return null;
   }
@@ -62,160 +65,124 @@ function readLocalStorageValue(key: string): string | null {
 
 function writeLocalStorageValue(key: string, value: string): void {
   if (typeof window === "undefined") return;
-  const storage = window.localStorage as unknown;
-  if (
-    storage === null ||
-    typeof storage !== "object" ||
-    !("setItem" in storage) ||
-    typeof (storage as Storage).setItem !== "function"
-  ) {
-    return;
-  }
-
   try {
-    (storage as Storage).setItem(key, value);
+    window.localStorage?.setItem(key, value);
   } catch {
     // Ignore unavailable storage in tests or privacy-restricted environments.
   }
 }
 
-function loadTradesFromStorage(): Trade[] {
-  const raw = readLocalStorageValue(TRADES_STORAGE_KEY);
+function loadJsonArray<T>(key: string): T[] {
+  const raw = readLocalStorageValue(key);
   if (!raw) return [];
-
   try {
     const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? (parsed as Trade[]) : [];
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
   } catch {
     return [];
   }
 }
 
-function loadDividendRowsFromStorage(): DividendRow[] {
-  const raw = readLocalStorageValue(DIVIDENDS_STORAGE_KEY);
-  if (!raw) return [];
-
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? (parsed as DividendRow[]) : [];
-  } catch {
-    return [];
-  }
+function loadExternalDividends(): ExternalDividend[] {
+  const stored = loadJsonArray<ExternalDividend>(DIVIDENDS_STORAGE_KEY);
+  return stored.length > 0 ? stored : DEFAULT_EXTERNAL_DIVIDENDS;
 }
 
-function inferPortfolioSource(trades: Trade[]): PortfolioSource {
-  return trades.some((trade) => trade.market === "US" || trade.currency === "USD")
-    ? "schwab"
-    : "sbi";
-}
-
-function loadPortfolioSource(): PortfolioSource {
-  const raw = readLocalStorageValue(SOURCE_STORAGE_KEY);
-  if (raw === "schwab" || raw === "sbi") return raw;
-  return inferPortfolioSource(loadTradesFromStorage());
-}
-
-function earliestTradeDate(trades: Trade[]): string | null {
-  return (
-    trades
-      .map((trade) => trade.tradeDate)
-      .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b))[0] ?? null
-  );
-}
-
-function defaultStartDateForSource(source: PortfolioSource, trades: Trade[]): string {
-  if (source === "schwab") return earliestTradeDate(trades) ?? FUND_TRACKING_START_DATE;
-  return FUND_TRACKING_START_DATE;
-}
-
-function baseCurrencyForSource(source: PortfolioSource): Currency {
-  return source === "schwab" ? "USD" : "JPY";
-}
-
-function benchmarkModeForSource(source: PortfolioSource): BenchmarkMode {
-  return source === "schwab" ? "us" : "japan";
-}
-
-function benchmarkLabelsForMode(mode: BenchmarkMode): { primary: string; secondary?: string } {
-  return mode === "us"
-    ? { primary: "S&P 500" }
-    : { primary: "TOPIX proxy", secondary: "Nikkei 225 Net TR" };
-}
-
-function defaultManualDividendForSource(source: PortfolioSource): string {
-  return source === "sbi" ? DEFAULT_SBI_MANUAL_DIVIDEND_YTD : "0";
-}
-
-function parseManualMoney(value: string): number {
-  const parsed = Number(value.replace(/[,\s￥¥$]/g, ""));
+function parseMoney(value: string): number {
+  const parsed = Number(value.replace(/[,\s￥¥]/g, ""));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
-function manualDividendSummary(amount: number): DividendSummary {
-  return {
-    state: "estimated",
-    yearToDate: amount,
-    byQuarter: { "Manual YTD": amount },
-    message: "Manual year-to-date dividend entered."
-  };
+function loadPeriod(): PeriodKey {
+  const raw = readLocalStorageValue(PERIOD_STORAGE_KEY);
+  return raw === "ytd" || raw === "qtd" || raw === "mtd" || raw === "inception" ? raw : "inception";
+}
+
+function latestQuoteDate(quotes: Quote[]): string | null {
+  const dates = quotes
+    .map((quote) => quote.asOf?.slice(0, 10))
+    .filter((date): date is string => Boolean(date))
+    .sort((a, b) => a.localeCompare(b));
+  return dates.at(-1) ?? null;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function signedPct(value: number | null): string {
+  if (value === null) return "N/A";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${(value * 100).toFixed(2)}%`;
+}
+
+function signedPts(value: number | null): string {
+  if (value === null) return "N/A";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${value.toFixed(1)} pts`;
+}
+
+function toneClass(value: number | null): string {
+  if (value === null || value === 0) return "";
+  return value > 0 ? "stat-positive" : "stat-negative";
 }
 
 export default function App() {
   const ledgerVersionRef = useRef(0);
+  const tearsheetRef = useRef<HTMLDivElement>(null);
   const [fileName, setFileName] = useState<string | null>(() =>
-    readLocalStorageValue(CSV_NAME_STORAGE_KEY)
+    readLocalStorageValue(TRADE_CSV_NAME_STORAGE_KEY)
   );
-  const [trades, setTrades] = useState<Trade[]>(() => loadTradesFromStorage());
-  const [portfolioSource, setPortfolioSource] = useState<PortfolioSource>(() =>
-    loadPortfolioSource()
+  const [cashFlowFileName, setCashFlowFileName] = useState<string | null>(() =>
+    readLocalStorageValue(CASHFLOW_CSV_NAME_STORAGE_KEY)
   );
-  const [dividendRows, setDividendRows] = useState<DividendRow[]>(() =>
-    loadDividendRowsFromStorage()
+  const [trades, setTrades] = useState<Trade[]>(() => loadJsonArray<Trade>(TRADES_STORAGE_KEY));
+  const [cashFlows, setCashFlows] = useState<CashFlow[]>(() =>
+    loadJsonArray<CashFlow>(CASHFLOWS_STORAGE_KEY)
   );
-  const [manualCashInput, setManualCashInput] = useState<string>(
-    () => readLocalStorageValue(MANUAL_CASH_STORAGE_KEY) ?? "0"
+  const [externalDividends, setExternalDividends] = useState<ExternalDividend[]>(() =>
+    loadExternalDividends()
   );
-  const [manualDividendInput, setManualDividendInput] = useState<string>(() => {
-    const source = loadPortfolioSource();
-    return (
-      readLocalStorageValue(MANUAL_DIVIDEND_STORAGE_KEY) ??
-      defaultManualDividendForSource(source)
-    );
-  });
   const [expectedDividendInput, setExpectedDividendInput] = useState<string>(
     () => readLocalStorageValue(EXPECTED_ANNUAL_DIVIDEND_STORAGE_KEY) ?? "0"
   );
-  const [trackingStartDate, setTrackingStartDate] = useState<string>(() => {
-    const source = loadPortfolioSource();
-    return (
-      readLocalStorageValue(TRACKING_START_STORAGE_KEY) ??
-      defaultStartDateForSource(source, loadTradesFromStorage())
-    );
-  });
+  const [period, setPeriod] = useState<PeriodKey>(() => loadPeriod());
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [quoteMessage, setQuoteMessage] = useState("Quotes not refreshed");
-  const [historyByHoldingId, setHistoryByHoldingId] = useState<Record<string, Array<{ date: string; close: number }>>>({});
+  const [historyByCode, setHistoryByCode] = useState<PriceHistory>({});
+  const [splitsByCode, setSplitsByCode] = useState<Record<string, Array<{ exDate: string; ratio: number }>>>({});
   const [benchmarks, setBenchmarks] = useState<{
     topix: BenchmarkPoint[];
     nikkei225: BenchmarkPoint[];
   }>({ topix: [], nikkei225: [] });
   const [error, setError] = useState<string | null>(null);
-  const manualCash = useMemo(() => parseManualMoney(manualCashInput), [manualCashInput]);
-  const manualDividend = useMemo(
-    () => parseManualMoney(manualDividendInput),
-    [manualDividendInput]
-  );
+
   const expectedAnnualDividend = useMemo(
-    () => parseManualMoney(expectedDividendInput),
+    () => parseMoney(expectedDividendInput),
     [expectedDividendInput]
   );
-  const baseCurrency = baseCurrencyForSource(portfolioSource);
-  const benchmarkMode = benchmarkModeForSource(portfolioSource);
-  const benchmarkLabels = benchmarkLabelsForMode(benchmarkMode);
+  const dividendAmountInput = useMemo(
+    () => String(externalDividends.reduce((sum, dividend) => sum + dividend.amount, 0)),
+    [externalDividends]
+  );
 
-  const portfolio = useMemo(() => buildPortfolioState(trades), [trades]);
+  // Splits come from Yahoo's price feed (the same source that adjusts the prices), merged
+  // with the manual STOCK_SPLITS fallback and de-duped, so quantity and price adjustments
+  // always agree — no hand-maintained list to forget. J-Quants AdjustmentFactor can feed
+  // this same list when wired in.
+  const splits = useMemo<SplitEvent[]>(() => {
+    const detected: SplitEvent[] = Object.entries(splitsByCode).flatMap(([code, events]) =>
+      events.map((event) => ({ code, exDate: event.exDate, ratio: event.ratio }))
+    );
+    return mergeSplitEvents(STOCK_SPLITS, detected);
+  }, [splitsByCode]);
+
+  const portfolio = useMemo(() => buildPortfolioState(trades, undefined, splits), [trades, splits]);
   const historicalHoldings = useMemo(() => buildHistoricalHoldings(trades), [trades]);
+  const dataWarnings = useMemo(
+    () => reconcileTradesAgainstPrices(trades, historyByCode, splits),
+    [trades, historyByCode, splits]
+  );
   const pricedHoldings = useMemo(
     () => priceHoldings(portfolio.holdings, quotes, {}),
     [portfolio.holdings, quotes]
@@ -223,176 +190,172 @@ export default function App() {
   const missingQuotes = pricedHoldings.filter((holding) =>
     ["missing", "stale"].includes(holding.quote.status)
   ).length;
-  const holdingsValue = pricedHoldings.reduce((sum, holding) => sum + holding.marketValue, 0);
-  const baseLatestSnapshot = buildCurrentSnapshot({
-    date: new Date().toISOString().slice(0, 10),
-    cash: portfolio.cash,
-    holdingsValue,
-    inferredInitialCash: portfolio.inferredInitialCash
-  });
-  const latestSnapshot = applyInternalIncomeToSnapshot(
-    applyCashFlowToSnapshot(baseLatestSnapshot, manualCash),
-    manualDividend
+
+  const asOfDate = useMemo(() => latestQuoteDate(quotes) ?? todayIso(), [quotes]);
+  const latestPriceByCode = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const quote of quotes) if (quote.price != null) map[quote.code] = quote.price;
+    return map;
+  }, [quotes]);
+
+  const snapshots = useMemo(
+    () =>
+      buildFundSnapshots({
+        trades,
+        cashFlows,
+        dividends: externalDividends,
+        historyByCode,
+        latestPriceByCode,
+        asOfDate,
+        splits
+      }),
+    [trades, cashFlows, externalDividends, historyByCode, latestPriceByCode, asOfDate, splits]
+  );
+
+  // Persisted daily NAV: show real history on load before any network call, and keep
+  // early history once the rolling price window moves past inception. Fresh (live) data
+  // wins; stored only backfills dates the fresh series lacks.
+  const [storedSnapshots, setStoredSnapshots] = useState<PortfolioSnapshot[]>(() =>
+    loadJsonArray<PortfolioSnapshot>(SNAPSHOTS_STORAGE_KEY)
+  );
+  const hasLiveData = quotes.length > 0;
+  const displaySnapshots = useMemo(
+    () =>
+      hasLiveData
+        ? mergeStoredSnapshots(storedSnapshots, snapshots)
+        : storedSnapshots.length > 0
+          ? storedSnapshots
+          : snapshots,
+    [hasLiveData, storedSnapshots, snapshots]
+  );
+  useEffect(() => {
+    if (hasLiveData && snapshots.length > 0) {
+      writeLocalStorageValue(SNAPSHOTS_STORAGE_KEY, JSON.stringify(snapshots));
+    }
+  }, [hasLiveData, snapshots]);
+
+  const latest = displaySnapshots.at(-1) ?? null;
+  const nav = latest?.nav ?? 0;
+  const cash = latest?.cash ?? 0;
+  const sinceInception = timeWeightedReturn(displaySnapshots, "inception");
+  const periodReturn = timeWeightedReturn(displaySnapshots, period);
+  const irr = moneyWeightedReturn(cashFlows, externalDividends, nav, asOfDate);
+  const netContributions = cashFlows.reduce(
+    (sum, flow) =>
+      sum + (flow.kind === "contribution" ? flow.amount : flow.kind === "withdrawal" ? -flow.amount : 0),
+    0
+  );
+
+  const chartStartDate = periodStartDate(asOfDate, period) ?? displaySnapshots[0]?.date;
+  const chartData = useMemo(
+    () => buildPerformanceChartData(displaySnapshots, benchmarks.topix, benchmarks.nikkei225, chartStartDate),
+    [displaySnapshots, benchmarks.topix, benchmarks.nikkei225, chartStartDate]
+  );
+  const quarterly = useMemo(
+    () => quarterlyReturns(displaySnapshots, benchmarks.topix, benchmarks.nikkei225, externalDividends),
+    [displaySnapshots, benchmarks.topix, benchmarks.nikkei225, externalDividends]
   );
   const allocationSlices = useMemo(
-    () => buildAllocationSlices(pricedHoldings, manualCash, baseCurrency),
-    [baseCurrency, manualCash, pricedHoldings]
+    () => buildAllocationSlices(pricedHoldings, cash, "JPY"),
+    [pricedHoldings, cash]
   );
-  const importedDividendSummary = summarizeDividends(dividendRows);
-  const dividendSummary =
-    manualDividend > 0 ? manualDividendSummary(manualDividend) : importedDividendSummary;
-  const portfolioSnapshots = useMemo(
+  const attribution = useMemo(
+    () => buildAttribution(trades, pricedHoldings, splits),
+    [trades, pricedHoldings, splits]
+  );
+
+  const dividendSummary = useMemo(
     () =>
-      buildHistoricalSnapshots({
-        trades,
-        historyByHoldingId,
-        latestQuotes: quotes,
-        currentCashOverride: manualCash,
-        currentInternalIncome: manualDividend,
-        startDate: trackingStartDate
-      }),
-    [historyByHoldingId, manualCash, manualDividend, quotes, trackingStartDate, trades]
-  );
-  const dailyChangeSnapshots = useMemo(
-    () =>
-      buildHistoricalSnapshots({
-        trades,
-        historyByHoldingId,
-        latestQuotes: quotes,
-        currentCashOverride: manualCash,
-        startDate: trackingStartDate
-      }),
-    [historyByHoldingId, manualCash, quotes, trackingStartDate, trades]
-  );
-  const summarySnapshot = latestSnapshot;
-  const beginningValue = 0;
-  const investmentChange = calculateInvestmentChange({
-    pricedHoldings,
-    realizedPnl: portfolio.realizedPnl,
-    internalIncome: manualDividend
-  });
-  const netContributions = calculateNetContributions({
-    beginningValue,
-    endingValue: summarySnapshot.nav,
-    investmentChange
-  });
-  const unitNavReturn =
-    summarySnapshot.units === 0 || !Number.isFinite(summarySnapshot.unitNav)
-      ? null
-      : summarySnapshot.unitNav / 100 - 1;
-  const manualAdjustments: ManualAdjustmentRow[] = [
-    {
-      id: "beginning-value",
-      label: "Beginning value",
-      treatment: "Period start"
-    },
-    {
-      id: "manual-cash",
-      label: "Manual cash balance",
-      treatment: "Ending cash"
-    },
-    {
-      id: "manual-dividend",
-      label: "Manual dividend outside broker",
-      treatment: "Internal income"
-    },
-    {
-      id: "expected-yearly-dividend",
-      label: "Expected yearly dividend",
-      treatment: "Projection"
-    },
-    {
-      id: "in-kind-transfer",
-      label: "In-kind transfer values",
-      treatment: "Manual placeholder"
-    }
-  ].map((row) => ({
-    ...row,
-    amount:
-      row.id === "beginning-value"
-        ? beginningValue
-        : row.id === "manual-cash"
-          ? manualCash
-          : row.id === "manual-dividend"
-            ? manualDividend
-            : row.id === "expected-yearly-dividend"
-              ? expectedAnnualDividend
-              : 0
-  }));
-  const quarterly = useMemo(
-    () => quarterlyReturns(portfolioSnapshots, benchmarks.topix, benchmarks.nikkei225),
-    [benchmarks.nikkei225, benchmarks.topix, portfolioSnapshots]
-  );
-  const latestQuarterlyReturn =
-    [...quarterly].reverse().find((row) => row.portfolioReturn !== null)?.portfolioReturn ?? null;
-  const chartData = useMemo(
-    () =>
-      buildPerformanceChartData(
-        portfolioSnapshots,
-        benchmarks.topix,
-        benchmarks.nikkei225,
-        trackingStartDate
-      ),
-    [benchmarks.nikkei225, benchmarks.topix, portfolioSnapshots, trackingStartDate]
-  );
-  const latestNormalizedPortfolio =
-    [...chartData].reverse().find((point) => point.portfolio !== null)?.portfolio ?? null;
-  const totalReturn =
-    latestNormalizedPortfolio === null
-      ? summarySnapshot.unitNav / 100 - 1
-      : latestNormalizedPortfolio / 100 - 1;
-  const dailyChange =
-    dailyChangeSnapshots.length >= 2
-      ? investmentChangeBetweenSnapshots(
-          dailyChangeSnapshots[dailyChangeSnapshots.length - 2],
-          dailyChangeSnapshots[dailyChangeSnapshots.length - 1]
+      summarizeDividends(
+        externalDividends.map(
+          (dividend): DividendRow => ({ date: dividend.date, amount: dividend.amount, state: "confirmed" })
         )
+      ),
+    [externalDividends]
+  );
+
+  const latestChartPoint = [...chartData].reverse().find((point) => point.portfolio !== null) ?? null;
+  const vsTopix =
+    latestChartPoint?.portfolio != null && latestChartPoint?.topix != null
+      ? latestChartPoint.portfolio - latestChartPoint.topix
       : null;
+  const vsNikkei =
+    latestChartPoint?.portfolio != null && latestChartPoint?.nikkei225 != null
+      ? latestChartPoint.portfolio - latestChartPoint.nikkei225
+      : null;
+
+  function persistTrades(next: Trade[]) {
+    setTrades(next);
+    writeLocalStorageValue(TRADES_STORAGE_KEY, JSON.stringify(next));
+  }
+
+  function persistCashFlows(next: CashFlow[]) {
+    setCashFlows(next);
+    writeLocalStorageValue(CASHFLOWS_STORAGE_KEY, JSON.stringify(next));
+  }
+
+  function persistDividends(next: ExternalDividend[]) {
+    setExternalDividends(next);
+    writeLocalStorageValue(DIVIDENDS_STORAGE_KEY, JSON.stringify(next));
+  }
 
   async function handleImport(file: File) {
     try {
       const buffer = await file.arrayBuffer();
-      const parsed = parsePortfolioCsv(buffer);
-      const nextStartDate = defaultStartDateForSource(parsed.source, parsed.trades);
+      const nextTrades = parseSbiExecutionCsv(buffer);
       ledgerVersionRef.current += 1;
-      setTrades(parsed.trades);
-      setPortfolioSource(parsed.source);
-      setDividendRows(parsed.dividends);
-      setTrackingStartDate(nextStartDate);
+      persistTrades(nextTrades);
       setFileName(file.name);
+      writeLocalStorageValue(TRADE_CSV_NAME_STORAGE_KEY, file.name);
       setQuotes([]);
-      setHistoryByHoldingId({});
+      setHistoryByCode({});
+      setSplitsByCode({});
       setBenchmarks({ topix: [], nikkei225: [] });
+      setStoredSnapshots([]);
+      writeLocalStorageValue(SNAPSHOTS_STORAGE_KEY, "[]");
       setQuoteMessage("Quotes not refreshed");
       setError(null);
-      if (parsed.source !== portfolioSource) {
-        const nextManualDividend = defaultManualDividendForSource(parsed.source);
-        setManualCashInput("0");
-        setManualDividendInput(nextManualDividend);
-        setExpectedDividendInput("0");
-        writeLocalStorageValue(MANUAL_CASH_STORAGE_KEY, "0");
-        writeLocalStorageValue(MANUAL_DIVIDEND_STORAGE_KEY, nextManualDividend);
-        writeLocalStorageValue(EXPECTED_ANNUAL_DIVIDEND_STORAGE_KEY, "0");
-      }
-
-      writeLocalStorageValue(CSV_NAME_STORAGE_KEY, file.name);
-      writeLocalStorageValue(TRADES_STORAGE_KEY, JSON.stringify(parsed.trades));
-      writeLocalStorageValue(SOURCE_STORAGE_KEY, parsed.source);
-      writeLocalStorageValue(DIVIDENDS_STORAGE_KEY, JSON.stringify(parsed.dividends));
-      writeLocalStorageValue(TRACKING_START_STORAGE_KEY, nextStartDate);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Import failed");
+      setError(err instanceof Error ? err.message : "Trade import failed");
     }
   }
 
-  function handleManualCashInputChange(value: string) {
-    setManualCashInput(value);
-    writeLocalStorageValue(MANUAL_CASH_STORAGE_KEY, value);
+  async function handleImportDividends(file: File) {
+    try {
+      const buffer = await file.arrayBuffer();
+      const nextDividends = parseDividendCsv(buffer);
+      if (nextDividends.length === 0) {
+        setError("No dividend rows found in that CSV.");
+        return;
+      }
+      persistDividends(nextDividends);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Dividend import failed");
+    }
   }
 
-  function handleManualDividendInputChange(value: string) {
-    setManualDividendInput(value);
-    writeLocalStorageValue(MANUAL_DIVIDEND_STORAGE_KEY, value);
+  async function handleImportCashFlows(file: File) {
+    try {
+      const buffer = await file.arrayBuffer();
+      const nextCashFlows = parseSbiCashFlowCsv(buffer);
+      persistCashFlows(nextCashFlows);
+      setCashFlowFileName(file.name);
+      writeLocalStorageValue(CASHFLOW_CSV_NAME_STORAGE_KEY, file.name);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Cash-flow import failed");
+    }
+  }
+
+  function handlePeriodChange(next: PeriodKey) {
+    setPeriod(next);
+    writeLocalStorageValue(PERIOD_STORAGE_KEY, next);
+  }
+
+  function handleDividendInputChange(value: string) {
+    const amount = parseMoney(value);
+    persistDividends([{ date: DIVIDEND_SEED_DATE, amount, note: "External account dividends" }]);
   }
 
   function handleExpectedDividendInputChange(value: string) {
@@ -400,56 +363,49 @@ export default function App() {
     writeLocalStorageValue(EXPECTED_ANNUAL_DIVIDEND_STORAGE_KEY, value);
   }
 
-  function handleTrackingStartDateChange(value: string) {
-    const nextStartDate = value || defaultStartDateForSource(portfolioSource, trades);
-    setTrackingStartDate(nextStartDate);
-    writeLocalStorageValue(TRACKING_START_STORAGE_KEY, nextStartDate);
-  }
-
   async function handleRefresh() {
     const refreshLedgerVersion = ledgerVersionRef.current;
-
     try {
       if (portfolio.holdings.length === 0) {
         setQuotes([]);
-        setHistoryByHoldingId({});
+        setHistoryByCode({});
+        setSplitsByCode({});
         setBenchmarks({ topix: [], nikkei225: [] });
         setQuoteMessage("No holdings to quote");
         setError(null);
         return;
       }
 
-      const quoteRequest =
-        baseCurrency === "USD"
-          ? fetchQuotesForHoldings(portfolio.holdings, baseCurrency)
-          : fetchQuotesForHoldings(portfolio.holdings);
-      const historyRequest =
-        baseCurrency === "USD"
-          ? fetchHistoryForHoldings(historicalHoldings, "1y", baseCurrency)
-          : fetchHistoryForHoldings(historicalHoldings, "1y");
-      const benchmarkRequest =
-        benchmarkMode === "us" ? fetchBenchmarks("1y", benchmarkMode) : fetchBenchmarks("1y");
-
-      const [nextQuotes, nextHistory, nextBenchmarks] = await Promise.all([
-        quoteRequest,
-        historyRequest,
-        benchmarkRequest
+      // Resilient: one failing endpoint must not discard the others' data.
+      const [quotesResult, historyResult, benchmarksResult] = await Promise.allSettled([
+        fetchQuotesForHoldings(portfolio.holdings),
+        fetchHistoryForHoldings(historicalHoldings, "1y"),
+        fetchBenchmarks("1y")
       ]);
 
-      if (refreshLedgerVersion !== ledgerVersionRef.current) {
-        return;
-      }
+      if (refreshLedgerVersion !== ledgerVersionRef.current) return;
 
-      setQuotes(nextQuotes);
-      setHistoryByHoldingId(nextHistory);
-      setBenchmarks(nextBenchmarks);
-      setQuoteMessage(nextQuotes.length === 0 ? "No holdings to quote" : "Latest available prices");
-      setError(null);
+      if (quotesResult.status === "fulfilled") setQuotes(quotesResult.value);
+      if (historyResult.status === "fulfilled") {
+        setHistoryByCode(historyResult.value.historyByCode);
+        setSplitsByCode(historyResult.value.splitsByCode);
+      }
+      if (benchmarksResult.status === "fulfilled") setBenchmarks(benchmarksResult.value);
+
+      const failures = [quotesResult, historyResult, benchmarksResult].filter(
+        (result) => result.status === "rejected"
+      ).length;
+      const quotesLoaded = quotesResult.status === "fulfilled" && quotesResult.value.length > 0;
+      setQuoteMessage(
+        !quotesLoaded
+          ? "Quote refresh failed"
+          : failures > 0
+            ? "Latest prices · some market data unavailable"
+            : "Latest available prices"
+      );
+      setError(failures === 3 ? "All market-data requests failed. Is the API server running?" : null);
     } catch (err) {
-      if (refreshLedgerVersion !== ledgerVersionRef.current) {
-        return;
-      }
-
+      if (refreshLedgerVersion !== ledgerVersionRef.current) return;
       setQuoteMessage("Quote refresh failed");
       setError(err instanceof Error ? err.message : "Quote refresh failed");
     }
@@ -459,50 +415,90 @@ export default function App() {
     <main className="app-shell market-cockpit">
       <DashboardHeader
         fileName={fileName}
+        cashFlowFileName={cashFlowFileName}
         quoteStatus={quoteMessage}
         onImport={handleImport}
+        onImportCashFlows={handleImportCashFlows}
+        onImportDividends={handleImportDividends}
         onRefresh={handleRefresh}
       />
 
       {error ? <div className="error-banner">{error}</div> : null}
 
+      {dataWarnings.length > 0 ? (
+        <div className="warning-banner" role="alert">
+          <strong>Data integrity check:</strong>
+          <ul>
+            {dataWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <SummaryStrip
-        nav={summarySnapshot.nav}
-        dailyChange={dailyChange}
-        totalReturn={totalReturn}
-        quarterlyReturn={latestQuarterlyReturn}
-        cash={manualCash}
-        cashInput={manualCashInput}
-        onCashInputChange={handleManualCashInputChange}
-        currency={baseCurrency}
-        trackingStartDate={trackingStartDate}
-        onTrackingStartDateChange={handleTrackingStartDateChange}
+        nav={nav}
+        sinceInception={sinceInception}
+        periodReturn={periodReturn}
+        period={period}
+        onPeriodChange={handlePeriodChange}
+        irr={irr}
+        cash={cash}
+        netContributions={netContributions}
         missingQuotes={missingQuotes}
+        currency="JPY"
       />
 
-      <div className="insight-grid">
-        <PerformanceChart data={chartData} benchmarkLabels={benchmarkLabels} />
-        <AllocationPieChart slices={allocationSlices} currency={baseCurrency} />
+      <div className="tearsheet-bar">
+        <DownloadPngButton
+          targetRef={tearsheetRef}
+          filename={`hiroshi-capital-tearsheet-${asOfDate}.png`}
+          label="Download quarterly tearsheet"
+        />
+      </div>
+
+      <div className="report-tearsheet" ref={tearsheetRef}>
+        <div className="tearsheet-header">
+          <div>
+            <p className="report-eyebrow">Hiroshi Capital</p>
+            <h2>Quarterly performance &amp; allocation</h2>
+            <p className="report-sub">Total-return basis · as of {asOfDate}</p>
+          </div>
+          <div className="tearsheet-kpis">
+            <div>
+              <span>Net asset value</span>
+              <strong>{formatCurrency(nav, "JPY")}</strong>
+            </div>
+            <div>
+              <span>Return (since inception)</span>
+              <strong className={toneClass(sinceInception)}>{signedPct(sinceInception)}</strong>
+            </div>
+            <div>
+              <span>vs TOPIX</span>
+              <strong className={toneClass(vsTopix)}>{signedPts(vsTopix)}</strong>
+            </div>
+            <div>
+              <span>vs Nikkei</span>
+              <strong className={toneClass(vsNikkei)}>{signedPts(vsNikkei)}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="insight-grid">
+          <PerformanceChart data={chartData} benchmarkLabels={BENCHMARK_LABELS} asOf={asOfDate} />
+          <AllocationPieChart slices={allocationSlices} currency="JPY" asOf={asOfDate} />
+        </div>
       </div>
 
       <div className="content-grid">
-        <HoldingsTable holdings={pricedHoldings} currency={baseCurrency} />
-        <PerformanceMethodPanel
-          currency={baseCurrency}
-          unitNavReturn={unitNavReturn}
-          beginningValue={beginningValue}
-          netContributions={netContributions}
-          investmentChange={investmentChange}
-          endingValue={summarySnapshot.nav}
-          benchmarkLabel={benchmarkLabels.primary}
-          adjustments={manualAdjustments}
-        />
-        <QuarterlyReturnsTable rows={quarterly} benchmarkLabels={benchmarkLabels} />
+        <HoldingsTable holdings={pricedHoldings} currency="JPY" />
+        <QuarterlyReturnsTable rows={quarterly} benchmarkLabels={BENCHMARK_LABELS} />
+        <ContributorsPanel attribution={attribution} currency="JPY" />
         <DividendsPanel
           summary={dividendSummary}
-          currency={baseCurrency}
-          manualDividendInput={manualDividendInput}
-          onManualDividendInputChange={handleManualDividendInputChange}
+          currency="JPY"
+          manualDividendInput={dividendAmountInput}
+          onManualDividendInputChange={handleDividendInputChange}
           expectedDividendInput={expectedDividendInput}
           expectedAnnualDividend={expectedAnnualDividend}
           onExpectedDividendInputChange={handleExpectedDividendInputChange}

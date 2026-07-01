@@ -1,14 +1,17 @@
+import { useRef } from "react";
 import {
+  Area,
   CartesianGrid,
+  ComposedChart,
   Legend,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis
 } from "recharts";
 import type { NormalizedPerformancePoint } from "../types";
+import { DownloadPngButton } from "./DownloadPngButton";
 
 type PerformanceInsight = {
   label: string;
@@ -22,18 +25,26 @@ export type BenchmarkLabels = {
 };
 
 const DEFAULT_BENCHMARK_LABELS: BenchmarkLabels = {
-  primary: "TOPIX proxy",
-  secondary: "Nikkei 225 Net TR"
+  primary: "TOPIX (TR)",
+  secondary: "Nikkei 225 (TR)"
 };
 
-function formatIndex(value: number | null | undefined): string {
-  return value === null || value === undefined ? "N/A" : value.toFixed(1);
-}
+const COLORS = {
+  portfolio: "#0f766e",
+  topix: "#2563eb",
+  nikkei: "#d97706"
+};
 
-function formatDelta(value: number | null): string {
+function formatDelta(value: number | null, unit = "pts"): string {
   if (value === null) return "N/A";
   const prefix = value > 0 ? "+" : "";
-  return `${prefix}${value.toFixed(1)} pts`;
+  return `${prefix}${value.toFixed(1)} ${unit}`;
+}
+
+function formatPct(value: number | null): string {
+  if (value === null) return "N/A";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${(value * 100).toFixed(2)}%`;
 }
 
 function toneFor(value: number | null): PerformanceInsight["tone"] {
@@ -50,20 +61,13 @@ function latestPoint(data: NormalizedPerformancePoint[]): NormalizedPerformanceP
   );
 }
 
-function portfolioDayMoves(data: NormalizedPerformancePoint[]): number[] {
-  const portfolioPoints = data
-    .map((point) => point.portfolio)
-    .filter((value): value is number => value !== null);
-
-  return portfolioPoints.slice(1).map((value, index) => value - portfolioPoints[index]);
-}
-
 function buildInsights(
   data: NormalizedPerformancePoint[],
   labels: BenchmarkLabels
 ): PerformanceInsight[] {
   const latest = latestPoint(data);
   const latestPortfolio = latest?.portfolio ?? null;
+  const sinceInception = latestPortfolio === null ? null : latestPortfolio / 100 - 1;
   const primaryExcess =
     latestPortfolio === null || latest?.topix === null || latest?.topix === undefined
       ? null
@@ -72,90 +76,108 @@ function buildInsights(
     latestPortfolio === null || latest?.nikkei225 === null || latest?.nikkei225 === undefined
       ? null
       : latestPortfolio - latest.nikkei225;
-  const moves = portfolioDayMoves(data);
-  const bestDay = moves.length === 0 ? null : Math.max(...moves);
-  const worstDay = moves.length === 0 ? null : Math.min(...moves);
 
   return [
     {
-      label: "Latest",
-      value: formatIndex(latestPortfolio),
-      tone: toneFor(latestPortfolio === null ? null : latestPortfolio - 100)
+      label: "Return (since start)",
+      value: formatPct(sinceInception),
+      tone: toneFor(sinceInception)
     },
     {
-      label: `Excess vs ${labels.primary}`,
+      label: `Excess vs ${labels.primary.replace(" (TR)", "")}`,
       value: formatDelta(primaryExcess),
       tone: toneFor(primaryExcess)
     },
     ...(labels.secondary
       ? [
           {
-            label: `Excess vs ${labels.secondary.replace(" 225", "")}`,
+            label: `Excess vs ${labels.secondary.replace(" 225", "").replace(" (TR)", "")}`,
             value: formatDelta(secondaryExcess),
             tone: toneFor(secondaryExcess)
           }
         ]
-      : []),
-    {
-      label: "Best day",
-      value: formatDelta(bestDay),
-      tone: toneFor(bestDay)
-    },
-    {
-      label: "Worst day",
-      value: formatDelta(worstDay),
-      tone: toneFor(worstDay)
-    }
+      : [])
   ];
 }
 
 export function PerformanceChart({
   data,
-  benchmarkLabels = DEFAULT_BENCHMARK_LABELS
+  benchmarkLabels = DEFAULT_BENCHMARK_LABELS,
+  asOf,
+  fundName = "Hiroshi Capital"
 }: {
   data: NormalizedPerformancePoint[];
   benchmarkLabels?: BenchmarkLabels;
+  asOf?: string;
+  fundName?: string;
 }) {
+  const cardRef = useRef<HTMLElement | null>(null);
   const insights = buildInsights(data, benchmarkLabels);
-  const benchmarkSubtitle = benchmarkLabels.secondary
-    ? `${benchmarkLabels.primary} / ${benchmarkLabels.secondary}`
-    : benchmarkLabels.primary;
+  const asOfLabel = asOf ? `as of ${asOf}` : "";
 
   return (
-    <section className="panel chart-panel">
-      <div className="panel-heading">
+    <section className="panel report-card chart-panel" ref={cardRef}>
+      <div className="report-heading">
         <div>
+          <p className="report-eyebrow">{fundName}</p>
           <h2>Performance</h2>
-          <p className="subtle">Portfolio vs {benchmarkSubtitle}</p>
+          <p className="report-sub">
+            Total return vs {benchmarkLabels.primary}
+            {benchmarkLabels.secondary ? ` & ${benchmarkLabels.secondary}` : ""} · rebased to 100
+            {asOfLabel ? ` · ${asOfLabel}` : ""}
+          </p>
         </div>
-        <span className="panel-kicker">Rebased to 100</span>
+        <DownloadPngButton
+          targetRef={cardRef}
+          filename={`hiroshi-capital-performance-${asOf ?? "latest"}.png`}
+        />
       </div>
       <ResponsiveContainer width="100%" height={320}>
-        <LineChart data={data} margin={{ top: 8, right: 18, bottom: 2, left: 0 }}>
-          <CartesianGrid stroke="rgba(148, 163, 184, 0.17)" strokeDasharray="3 6" vertical={false} />
-          <XAxis dataKey="date" tickLine={false} axisLine={false} stroke="#8ea2a8" />
+        <ComposedChart data={data} margin={{ top: 8, right: 18, bottom: 2, left: 0 }}>
+          <defs>
+            <linearGradient id="portfolioFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={COLORS.portfolio} stopOpacity={0.16} />
+              <stop offset="100%" stopColor={COLORS.portfolio} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="#e8ede9" strokeDasharray="3 6" vertical={false} />
+          <XAxis dataKey="date" tickLine={false} axisLine={false} stroke="#7c8b86" fontSize={11} minTickGap={40} />
           <YAxis
-            domain={["dataMin - 2", "dataMax + 2"]}
+            domain={["dataMin - 3", "dataMax + 3"]}
             tickLine={false}
             axisLine={false}
-            stroke="#8ea2a8"
+            stroke="#7c8b86"
+            fontSize={11}
+            width={44}
+            tickFormatter={(value: number) => Math.round(value).toString()}
           />
-          <Tooltip contentStyle={{ background: "#101820", border: "1px solid #24424a", borderRadius: 8 }} />
-          <Legend verticalAlign="top" height={34} />
-          <Line
+          <Tooltip
+            contentStyle={{
+              background: "#ffffff",
+              border: "1px solid #e2e8e4",
+              borderRadius: 10,
+              boxShadow: "0 8px 24px rgba(15, 32, 30, 0.12)",
+              color: "#1a2b2e"
+            }}
+            formatter={(value) => (typeof value === "number" ? value.toFixed(1) : String(value))}
+          />
+          <Legend verticalAlign="top" height={30} iconType="plainline" wrapperStyle={{ fontSize: 12 }} />
+          <Area
             type="monotone"
             dataKey="portfolio"
-            name="Portfolio"
-            stroke="#14b8a6"
-            strokeWidth={3.4}
+            name={fundName}
+            stroke={COLORS.portfolio}
+            strokeWidth={2.6}
+            fill="url(#portfolioFill)"
             dot={false}
+            activeDot={{ r: 3 }}
           />
           <Line
             type="monotone"
             dataKey="topix"
             name={benchmarkLabels.primary}
-            stroke="#38bdf8"
-            strokeWidth={2.5}
+            stroke={COLORS.topix}
+            strokeWidth={2}
             dot={false}
           />
           {benchmarkLabels.secondary ? (
@@ -163,16 +185,16 @@ export function PerformanceChart({
               type="monotone"
               dataKey="nikkei225"
               name={benchmarkLabels.secondary}
-              stroke="#f59e0b"
-              strokeWidth={2.5}
+              stroke={COLORS.nikkei}
+              strokeWidth={2}
               dot={false}
             />
           ) : null}
-        </LineChart>
+        </ComposedChart>
       </ResponsiveContainer>
-      <div className="performance-insights" aria-label="Performance analytics">
+      <div className="report-stats" aria-label="Performance analytics">
         {insights.map((insight) => (
-          <div className={`performance-insight insight-${insight.tone}`} key={insight.label}>
+          <div className={`report-stat stat-${insight.tone}`} key={insight.label}>
             <span>{insight.label}</span>
             <strong>{insight.value}</strong>
           </div>

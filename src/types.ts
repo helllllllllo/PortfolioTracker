@@ -1,4 +1,4 @@
-export type Currency = "JPY" | "USD";
+export type Currency = "JPY";
 
 export type TradeSide = "buy" | "sell" | "split";
 
@@ -54,9 +54,10 @@ export type PortfolioSnapshot = {
   date: string;
   cash: number;
   holdingsValue: number;
-  nav: number;
+  nav: number; // AUM = cash + holdingsValue
+  navTotalReturn?: number; // nav + cumulative added-back dividends (always set by the fund engine)
   units: number;
-  unitNav: number;
+  unitNav: number; // navTotalReturn / units (total-return unit price)
 };
 
 export type BenchmarkPoint = {
@@ -82,6 +83,18 @@ export type QuarterlyReturn = {
   vsNikkei225: number | null;
   dividendContribution: number | null;
 };
+
+export type CashFlowKind = "contribution" | "withdrawal" | "income";
+
+export type CashFlow = {
+  date: string;
+  kind: CashFlowKind;
+  category: string;
+  description: string;
+  amount: number;
+};
+
+export type ExternalDividend = { date: string; amount: number; code?: string; note?: string };
 
 export type DividendState = "confirmed" | "estimated" | "unavailable";
 

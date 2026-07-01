@@ -46,14 +46,14 @@ describe("buildPortfolioState", () => {
     expect(state.cash).toBe(300000);
     expect(state.holdings).toEqual([
       expect.objectContaining({
-        id: "6846::名証",
+        id: "6846",
         code: "6846",
         market: "名証",
         quantity: 100,
         averageCost: 1355
       }),
       expect.objectContaining({
-        id: "7974::東証",
+        id: "7974",
         quantity: 60,
         averageCost: 7000,
         realizedPnl: 20000
@@ -174,81 +174,67 @@ describe("buildPortfolioState", () => {
       }
     ];
 
+    // Trades are normalized into split-adjusted space (to match Yahoo's split-adjusted
+    // price series), so the holding is expressed in post-split terms regardless of the
+    // as-of date. Cost basis is preserved; quantity doubles and average cost halves.
     const beforeSplit = buildPortfolioState(hitTrades, "2026-06-28").holdings[0];
     const afterSplit = buildPortfolioState(hitTrades, "2026-06-29").holdings[0];
 
-    expect(beforeSplit).toEqual(
-      expect.objectContaining({
-        code: "378A",
-        name: "ヒット",
-        market: "東証",
-        quantity: 3000,
-        costBasis: 7571500
-      })
-    );
-    expect(beforeSplit.averageCost).toBeCloseTo(2523.8333333333335, 12);
-
-    expect(afterSplit).toEqual(
-      expect.objectContaining({
-        code: "378A",
-        name: "ヒット",
-        market: "東証",
-        quantity: 6000,
-        costBasis: 7571500
-      })
-    );
-    expect(afterSplit.averageCost).toBeCloseTo(1261.9166666666667, 12);
+    for (const holding of [beforeSplit, afterSplit]) {
+      expect(holding).toEqual(
+        expect.objectContaining({
+          code: "378A",
+          name: "ヒット",
+          market: "東証",
+          quantity: 6000,
+          costBasis: 7571500
+        })
+      );
+      expect(holding.averageCost).toBeCloseTo(1261.9166666666667, 12);
+    }
   });
 
-  it("resets quantity for Schwab reverse split events without changing remaining cost basis", () => {
-    const state = buildPortfolioState([
+  it("aggregates the same code across 東証 / PTS / 名証 into one holding", () => {
+    const venueTrades: Trade[] = [
       {
-        tradeDate: "2024-01-05",
-        settlementDate: "2024-01-05",
-        code: "HYDR",
-        name: "GLOBAL X HYDROGEN ETF",
-        market: "US",
+        tradeDate: "2026-02-01",
+        settlementDate: "2026-02-03",
+        code: "4689",
+        name: "ＬＩＮＥヤフー",
+        market: "東証",
         side: "buy",
-        quantity: 1343,
-        price: 10,
-        grossAmount: 13430,
-        currency: "USD"
+        quantity: 800,
+        price: 400,
+        grossAmount: 320000
       },
       {
-        tradeDate: "2024-06-17",
-        settlementDate: "2024-06-17",
-        code: "HYDR",
-        name: "GLOBAL X HYDROGEN ETF",
-        market: "US",
-        side: "split",
-        quantity: 268,
-        price: 0,
-        grossAmount: 0,
-        currency: "USD"
+        tradeDate: "2026-02-01",
+        settlementDate: "2026-02-03",
+        code: "4689",
+        name: "ＬＩＮＥヤフー",
+        market: "PTS（X）",
+        side: "buy",
+        quantity: 200,
+        price: 400,
+        grossAmount: 80000
       },
       {
-        tradeDate: "2026-05-21",
-        settlementDate: "2026-05-21",
-        code: "HYDR",
-        name: "GLOBAL X HYDROGEN ETF",
-        market: "US",
-        side: "sell",
+        tradeDate: "2026-02-01",
+        settlementDate: "2026-02-03",
+        code: "4689",
+        name: "ＬＩＮＥヤフー",
+        market: "名証（名２）",
+        side: "buy",
         quantity: 100,
-        price: 67.62,
-        grossAmount: 6762,
-        currency: "USD"
+        price: 400,
+        grossAmount: 40000
       }
-    ]);
-
-    expect(state.holdings[0]).toEqual(
-      expect.objectContaining({
-        id: "HYDR::US",
-        quantity: 168,
-        costBasis: expect.closeTo(8418.805970149253, 8),
-        averageCost: expect.closeTo(50.111940298507456, 8),
-        currency: "USD"
-      })
-    );
+    ];
+    const { holdings } = buildPortfolioState(venueTrades, "2026-03-01");
+    const line = holdings.filter((holding) => holding.code === "4689");
+    expect(line).toHaveLength(1);
+    expect(line[0].quantity).toBe(1100);
+    expect(line[0].id).toBe("4689");
   });
 
   it("keeps sold holdings in the historical pricing universe", () => {
@@ -292,8 +278,8 @@ describe("buildPortfolioState", () => {
       "2222"
     ]);
     expect(buildHistoricalHoldings(trades).map((holding) => holding.id)).toEqual([
-      "1111::東証",
-      "2222::東証"
+      "1111",
+      "2222"
     ]);
   });
 });

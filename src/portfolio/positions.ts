@@ -1,23 +1,18 @@
 import type { Holding, Trade } from "../types";
-import {
-  applyEligibleStockSplitsToHoldings,
-  canonicalHoldingMarket
-} from "./corporateActions";
+import { canonicalHoldingMarket, splitAdjustTrades } from "./corporateActions";
+import type { SplitEvent } from "./corporateActions";
 
 type MutableHolding = Holding;
 
-function holdingId(code: string, market: string): string {
-  return `${code}::${market}`;
+function holdingId(code: string, _market: string): string {
+  return code;
 }
 
-export function buildPortfolioState(trades: Trade[]): {
-  holdings: Holding[];
-  cash: number;
-  inferredInitialCash: number;
-  realizedPnl: number;
-  warnings: string[];
-};
-export function buildPortfolioState(trades: Trade[], asOfDate?: string): {
+export function buildPortfolioState(
+  trades: Trade[],
+  asOfDate?: string,
+  splits?: readonly SplitEvent[]
+): {
   holdings: Holding[];
   cash: number;
   inferredInitialCash: number;
@@ -25,21 +20,18 @@ export function buildPortfolioState(trades: Trade[], asOfDate?: string): {
   warnings: string[];
 } {
   const effectiveAsOfDate = asOfDate ?? new Date().toISOString().slice(0, 10);
-  const sorted = [...trades]
+  const sorted = splitAdjustTrades(trades, splits)
     .filter((trade) => trade.tradeDate <= effectiveAsOfDate)
     .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate));
   const totalBuyAmount = sorted
     .filter((trade) => trade.side === "buy")
     .reduce((sum, trade) => sum + trade.grossAmount, 0);
   const byId = new Map<string, MutableHolding>();
-  const appliedSplitIds = new Set<string>();
   const warnings: string[] = [];
   let cash = totalBuyAmount;
   let realizedPnl = 0;
 
   for (const trade of sorted) {
-    applyEligibleStockSplitsToHoldings(byId, appliedSplitIds, trade.tradeDate);
-
     const market = canonicalHoldingMarket(trade.market);
     const id = holdingId(trade.code, market);
     const holding = byId.get(id) ?? {
@@ -60,9 +52,6 @@ export function buildPortfolioState(trades: Trade[], asOfDate?: string): {
       holding.quantity += trade.quantity;
       holding.averageCost = holding.quantity === 0 ? 0 : holding.costBasis / holding.quantity;
       holding.currency = trade.currency ?? holding.currency;
-      if (trade.grossAmount === 0 && trade.currency === "USD") {
-        holding.costBasisWarning = "Transferred or split shares may not include original cost basis";
-      }
     } else if (trade.side === "sell") {
       if (trade.quantity > holding.quantity) {
         warnings.push(`${trade.code} ${trade.name}: sell quantity exceeds current holding`);
@@ -87,8 +76,6 @@ export function buildPortfolioState(trades: Trade[], asOfDate?: string): {
 
     byId.set(id, holding);
   }
-
-  applyEligibleStockSplitsToHoldings(byId, appliedSplitIds, effectiveAsOfDate);
 
   const holdings = Array.from(byId.values())
     .filter((holding) => holding.quantity > 0)

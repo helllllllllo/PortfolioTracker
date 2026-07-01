@@ -114,10 +114,10 @@ describe("buildHistoricalSnapshots", () => {
     });
 
     expect(snapshots).toEqual([
-      { date: "2026-01-02", cash: 0, holdingsValue: 100000, nav: 100000, units: 1000, unitNav: 100 },
-      { date: "2026-01-03", cash: 60000, holdingsValue: 60000, nav: 120000, units: 1000, unitNav: 120 },
-      { date: "2026-01-04", cash: 60000, holdingsValue: 55000, nav: 115000, units: 1000, unitNav: 115 },
-      { date: "2026-01-05", cash: 60000, holdingsValue: 65000, nav: 125000, units: 1000, unitNav: 125 }
+      { date: "2026-01-02", cash: 0, holdingsValue: 100000, nav: 100000, navTotalReturn: 100000, units: 1000, unitNav: 100 },
+      { date: "2026-01-03", cash: 60000, holdingsValue: 60000, nav: 120000, navTotalReturn: 120000, units: 1000, unitNav: 120 },
+      { date: "2026-01-04", cash: 60000, holdingsValue: 55000, nav: 115000, navTotalReturn: 115000, units: 1000, unitNav: 115 },
+      { date: "2026-01-05", cash: 60000, holdingsValue: 65000, nav: 125000, navTotalReturn: 125000, units: 1000, unitNav: 125 }
     ]);
   });
 
@@ -362,6 +362,7 @@ describe("buildHistoricalSnapshots", () => {
         cash: 0,
         holdingsValue: 6036000,
         nav: 6036000,
+        navTotalReturn: 6036000,
         units: 75715,
         unitNav: 79.72000264148451
       },
@@ -370,6 +371,7 @@ describe("buildHistoricalSnapshots", () => {
         cash: 0,
         holdingsValue: 6066000,
         nav: 6066000,
+        navTotalReturn: 6066000,
         units: 75715,
         unitNav: 80.11622531862906
       }

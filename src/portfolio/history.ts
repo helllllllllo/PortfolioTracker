@@ -87,9 +87,6 @@ function buildStateThroughDate(
       holding.quantity += trade.quantity;
       holding.averageCost = holding.quantity === 0 ? 0 : holding.costBasis / holding.quantity;
       holding.currency = trade.currency ?? holding.currency;
-      if (trade.grossAmount === 0 && trade.currency === "USD") {
-        holding.costBasisWarning = "Transferred or split shares may not include original cost basis";
-      }
     } else if (trade.side === "sell") {
       const quantitySold = Math.min(trade.quantity, holding.quantity);
       const removedCost = holding.averageCost * quantitySold;

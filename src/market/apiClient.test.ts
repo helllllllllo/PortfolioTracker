@@ -79,61 +79,6 @@ describe("fetchQuotesForHoldings", () => {
     ]);
   });
 
-  it("maps US holdings to Yahoo US symbols and converts quotes through USDJPY", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        quotes: [
-          {
-            symbol: "BRK-B",
-            price: 500,
-            asOf: "2026-06-29T14:30:00.000Z",
-            source: "Yahoo Finance",
-            status: "delayed"
-          },
-          {
-            symbol: "USDJPY=X",
-            price: 160,
-            asOf: "2026-06-29T14:31:00.000Z",
-            source: "Yahoo Finance",
-            status: "delayed"
-          }
-        ]
-      })
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const holdings: Holding[] = [
-      {
-        id: "BRKB::US",
-        code: "BRKB",
-        name: "BERKSHIRE HATHAWAY CLASS B",
-        market: "US",
-        quantity: 2,
-        averageCost: 470,
-        costBasis: 940,
-        realizedPnl: 0,
-        currency: "USD"
-      }
-    ];
-
-    const result = await fetchQuotesForHoldings(holdings);
-
-    expect(fetchMock).toHaveBeenCalledWith("/api/quotes?symbols=BRK-B%2CUSDJPY%3DX");
-    expect(result).toEqual([
-      {
-        code: "BRKB",
-        market: "US",
-        price: 80000,
-        currency: "JPY",
-        asOf: "2026-06-29T14:30:00.000Z",
-        source: "Yahoo Finance / USDJPY=X",
-        status: "delayed",
-        message: undefined,
-        fxRateToJpy: 160
-      }
-    ]);
-  });
 });
 
 describe("fetchHistoryForHoldings", () => {
@@ -160,7 +105,7 @@ describe("fetchHistoryForHoldings", () => {
 
     const holdings: Holding[] = [
       {
-        id: "6846::名証",
+        id: "6846",
         code: "6846",
         name: "中央製作所",
         market: "名証",
@@ -170,7 +115,7 @@ describe("fetchHistoryForHoldings", () => {
         realizedPnl: 0
       },
       {
-        id: "7201::東証",
+        id: "7201",
         code: "7201",
         name: "日産自動車",
         market: "東証（外）",
@@ -184,67 +129,19 @@ describe("fetchHistoryForHoldings", () => {
     const result = await fetchHistoryForHoldings(holdings, "1y");
 
     expect(fetchMock).toHaveBeenCalledWith("/api/history?symbols=6846.N%2C7201.T&range=1y");
-    expect(result).toEqual({
-      "6846::名証": [],
-      "7201::東証": [
+    expect(result.historyByCode).toEqual({
+      "6846": [],
+      "7201": [
         { date: "2026-06-20", close: 998.5 },
         { date: "2026-06-23", close: 1012 }
       ]
     });
   });
 
-  it("converts US history rows to JPY using USDJPY history", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        history: [
-          {
-            symbol: "SNOW",
-            rows: [
-              { date: "2026-06-27", value: 220 },
-              { date: "2026-06-28", value: 225 }
-            ]
-          },
-          {
-            symbol: "USDJPY=X",
-            rows: [
-              { date: "2026-06-27", value: 159 },
-              { date: "2026-06-28", value: 160 }
-            ]
-          }
-        ]
-      })
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const holdings: Holding[] = [
-      {
-        id: "SNOW::US",
-        code: "SNOW",
-        name: "SNOWFLAKE INC CLASS A",
-        market: "US",
-        quantity: 10,
-        averageCost: 224.89,
-        costBasis: 2248.9,
-        realizedPnl: 0,
-        currency: "USD"
-      }
-    ];
-
-    const result = await fetchHistoryForHoldings(holdings, "1y");
-
-    expect(fetchMock).toHaveBeenCalledWith("/api/history?symbols=SNOW%2CUSDJPY%3DX&range=1y");
-    expect(result).toEqual({
-      "SNOW::US": [
-        { date: "2026-06-27", close: 34980 },
-        { date: "2026-06-28", close: 36000 }
-      ]
-    });
-  });
 });
 
 describe("fetchBenchmarks", () => {
-  it("labels Japan TOPIX data as a proxy because the server may fall back to 1308.T", async () => {
+  it("labels TOPIX and Nikkei series as total return", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -260,30 +157,10 @@ describe("fetchBenchmarks", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await fetchBenchmarks("1y", "japan");
+    const result = await fetchBenchmarks("1y");
 
     expect(fetchMock).toHaveBeenCalledWith("/api/benchmarks?range=1y");
-    expect(result.topix[0].source).toBe("Yahoo Finance TOPIX proxy");
-    expect(result.nikkei225[0].source).toBe("Nikkei official Net Total Return");
-  });
-
-  it("requests S&P 500 data for US benchmark mode", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        topix: [
-          { date: "2026-06-26", value: 6000 },
-          { date: "2026-06-29", value: 6060 }
-        ],
-        nikkei225: []
-      })
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const result = await fetchBenchmarks("1y", "us");
-
-    expect(fetchMock).toHaveBeenCalledWith("/api/benchmarks?range=1y&symbols=%5EGSPC");
-    expect(result.topix[0].source).toBe("Yahoo Finance ^GSPC");
-    expect(result.nikkei225).toEqual([]);
+    expect(result.topix[0].source).toBe("TOPIX Total Return (1306.T)");
+    expect(result.nikkei225[0].source).toBe("Nikkei 225 Net Total Return");
   });
 });

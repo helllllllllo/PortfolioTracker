@@ -1,1 +1,0 @@
-export const TOPIX_FALLBACK_SYMBOL = "1308.T";
