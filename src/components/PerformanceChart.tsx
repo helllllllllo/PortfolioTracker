@@ -143,12 +143,13 @@ export function PerformanceChart({
           <CartesianGrid stroke="#e8ede9" strokeDasharray="3 6" vertical={false} />
           <XAxis dataKey="date" tickLine={false} axisLine={false} stroke="#7c8b86" fontSize={11} minTickGap={40} />
           <YAxis
-            domain={["dataMin - 2", "dataMax + 2"]}
+            domain={["dataMin - 3", "dataMax + 3"]}
             tickLine={false}
             axisLine={false}
             stroke="#7c8b86"
             fontSize={11}
-            width={38}
+            width={44}
+            tickFormatter={(value: number) => Math.round(value).toString()}
           />
           <Tooltip
             contentStyle={{

@@ -303,7 +303,8 @@ export default function App() {
         return;
       }
 
-      const [nextQuotes, nextHistory, nextBenchmarks] = await Promise.all([
+      // Resilient: one failing endpoint must not discard the others' data.
+      const [quotesResult, historyResult, benchmarksResult] = await Promise.allSettled([
         fetchQuotesForHoldings(portfolio.holdings),
         fetchHistoryForHoldings(historicalHoldings, "1y"),
         fetchBenchmarks("1y")
@@ -311,11 +312,22 @@ export default function App() {
 
       if (refreshLedgerVersion !== ledgerVersionRef.current) return;
 
-      setQuotes(nextQuotes);
-      setHistoryByCode(nextHistory);
-      setBenchmarks(nextBenchmarks);
-      setQuoteMessage(nextQuotes.length === 0 ? "No holdings to quote" : "Latest available prices");
-      setError(null);
+      if (quotesResult.status === "fulfilled") setQuotes(quotesResult.value);
+      if (historyResult.status === "fulfilled") setHistoryByCode(historyResult.value);
+      if (benchmarksResult.status === "fulfilled") setBenchmarks(benchmarksResult.value);
+
+      const failures = [quotesResult, historyResult, benchmarksResult].filter(
+        (result) => result.status === "rejected"
+      ).length;
+      const quotesLoaded = quotesResult.status === "fulfilled" && quotesResult.value.length > 0;
+      setQuoteMessage(
+        !quotesLoaded
+          ? "Quote refresh failed"
+          : failures > 0
+            ? "Latest prices · some market data unavailable"
+            : "Latest available prices"
+      );
+      setError(failures === 3 ? "All market-data requests failed. Is the API server running?" : null);
     } catch (err) {
       if (refreshLedgerVersion !== ledgerVersionRef.current) return;
       setQuoteMessage("Quote refresh failed");
