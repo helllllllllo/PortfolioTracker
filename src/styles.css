@@ -1030,3 +1030,22 @@ tbody tr:hover {
   font-size: 21px;
   line-height: 1.05;
 }
+
+.warning-banner {
+  margin-bottom: 16px;
+  border: 1px solid rgba(217, 119, 6, 0.5);
+  background: rgba(217, 119, 6, 0.12);
+  color: #7c3f00;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+}
+
+.warning-banner ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.warning-banner strong {
+  color: #b45309;
+}

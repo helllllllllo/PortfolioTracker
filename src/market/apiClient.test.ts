@@ -105,7 +105,7 @@ describe("fetchHistoryForHoldings", () => {
 
     const holdings: Holding[] = [
       {
-        id: "6846::名証",
+        id: "6846",
         code: "6846",
         name: "中央製作所",
         market: "名証",
@@ -115,7 +115,7 @@ describe("fetchHistoryForHoldings", () => {
         realizedPnl: 0
       },
       {
-        id: "7201::東証",
+        id: "7201",
         code: "7201",
         name: "日産自動車",
         market: "東証（外）",
@@ -129,9 +129,9 @@ describe("fetchHistoryForHoldings", () => {
     const result = await fetchHistoryForHoldings(holdings, "1y");
 
     expect(fetchMock).toHaveBeenCalledWith("/api/history?symbols=6846.N%2C7201.T&range=1y");
-    expect(result).toEqual({
-      "6846::名証": [],
-      "7201::東証": [
+    expect(result.historyByCode).toEqual({
+      "6846": [],
+      "7201": [
         { date: "2026-06-20", close: 998.5 },
         { date: "2026-06-23", close: 1012 }
       ]

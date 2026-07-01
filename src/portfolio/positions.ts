@@ -1,5 +1,6 @@
 import type { Holding, Trade } from "../types";
 import { canonicalHoldingMarket, splitAdjustTrades } from "./corporateActions";
+import type { SplitEvent } from "./corporateActions";
 
 type MutableHolding = Holding;
 
@@ -7,7 +8,11 @@ function holdingId(code: string, _market: string): string {
   return code;
 }
 
-export function buildPortfolioState(trades: Trade[], asOfDate?: string): {
+export function buildPortfolioState(
+  trades: Trade[],
+  asOfDate?: string,
+  splits?: readonly SplitEvent[]
+): {
   holdings: Holding[];
   cash: number;
   inferredInitialCash: number;
@@ -15,7 +20,7 @@ export function buildPortfolioState(trades: Trade[], asOfDate?: string): {
   warnings: string[];
 } {
   const effectiveAsOfDate = asOfDate ?? new Date().toISOString().slice(0, 10);
-  const sorted = splitAdjustTrades(trades)
+  const sorted = splitAdjustTrades(trades, splits)
     .filter((trade) => trade.tradeDate <= effectiveAsOfDate)
     .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate));
   const totalBuyAmount = sorted

@@ -16,9 +16,17 @@ type ServerHistoryRow = {
   value: number;
 };
 
+type ServerSplit = { date: string; ratio: number };
+
 type ServerHistorySeries = {
   symbol: string;
   rows: ServerHistoryRow[];
+  splits?: ServerSplit[];
+};
+
+export type HoldingHistoryResult = {
+  historyByCode: HoldingHistoryMap;
+  splitsByCode: Record<string, Array<{ exDate: string; ratio: number }>>;
 };
 
 function symbolForHolding(holding: Holding): string {
@@ -79,21 +87,26 @@ export async function fetchQuotesForHoldings(holdings: Holding[]): Promise<Quote
 export async function fetchHistoryForHoldings(
   holdings: Holding[],
   range = "1y"
-): Promise<HoldingHistoryMap> {
+): Promise<HoldingHistoryResult> {
   const symbols = uniqueSymbols(holdings);
-  if (symbols.length === 0) return {};
+  if (symbols.length === 0) return { historyByCode: {}, splitsByCode: {} };
 
   const data = await fetchJson<{ history: ServerHistorySeries[] }>(
     `/api/history?symbols=${encodeURIComponent(symbols.join(","))}&range=${encodeURIComponent(range)}`
   );
-  const historyBySymbol = new Map(data.history.map((series) => [series.symbol, series.rows]));
+  const bySymbol = new Map(data.history.map((series) => [series.symbol, series]));
 
-  return Object.fromEntries(
-    holdings.map((holding) => {
-      const rows = historyBySymbol.get(symbolForHolding(holding)) ?? [];
-      return [holding.id, rows.map((row) => ({ date: row.date, close: row.value }))];
-    })
-  );
+  const historyByCode: HoldingHistoryMap = {};
+  const splitsByCode: Record<string, Array<{ exDate: string; ratio: number }>> = {};
+  for (const holding of holdings) {
+    const series = bySymbol.get(symbolForHolding(holding));
+    historyByCode[holding.id] = (series?.rows ?? []).map((row) => ({ date: row.date, close: row.value }));
+    splitsByCode[holding.code] = (series?.splits ?? []).map((split) => ({
+      exDate: split.date,
+      ratio: split.ratio
+    }));
+  }
+  return { historyByCode, splitsByCode };
 }
 
 export async function fetchBenchmarks(range = "1y"): Promise<{

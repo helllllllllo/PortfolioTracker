@@ -100,10 +100,13 @@ describe("App", () => {
       }
     ]);
     vi.mocked(fetchHistoryForHoldings).mockResolvedValue({
-      "7203": [
-        { date: "2026-01-15", close: 100 },
-        { date: "2026-01-20", close: 120 }
-      ]
+      historyByCode: {
+        "7203": [
+          { date: "2026-01-15", close: 100 },
+          { date: "2026-01-20", close: 120 }
+        ]
+      },
+      splitsByCode: {}
     });
     vi.mocked(fetchBenchmarks).mockResolvedValue({
       topix: [

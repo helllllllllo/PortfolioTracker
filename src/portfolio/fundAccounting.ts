@@ -1,5 +1,6 @@
 import type { CashFlow, ExternalDividend, PortfolioSnapshot, Trade } from "../types";
 import { splitAdjustTrades } from "./corporateActions";
+import type { SplitEvent } from "./corporateActions";
 
 export const UNIT_BASE = 100;
 
@@ -12,6 +13,7 @@ export type FundInputs = {
   historyByCode: PriceHistory;
   latestPriceByCode?: Record<string, number>;
   asOfDate: string;
+  splits?: readonly SplitEvent[];
 };
 
 type Position = { qty: number; costBasis: number; avgCost: number; realized: number };
@@ -51,8 +53,8 @@ function applyTrade(positions: Map<string, Position>, trade: Trade, onCash: (del
 }
 
 export function buildFundSnapshots(inputs: FundInputs): PortfolioSnapshot[] {
-  const { cashFlows, dividends, historyByCode, latestPriceByCode, asOfDate } = inputs;
-  const trades = splitAdjustTrades(inputs.trades);
+  const { cashFlows, dividends, historyByCode, latestPriceByCode, asOfDate, splits } = inputs;
+  const trades = splitAdjustTrades(inputs.trades, splits);
 
   const eventDates = new Set<string>();
   for (const t of trades) if (t.tradeDate <= asOfDate) eventDates.add(t.tradeDate);

@@ -21,6 +21,12 @@ import { moneyWeightedReturn } from "./portfolio/irr";
 import { quarterlyReturns } from "./portfolio/nav";
 import { buildPerformanceChartData } from "./portfolio/history";
 import { buildHistoricalHoldings, buildPortfolioState } from "./portfolio/positions";
+import {
+  STOCK_SPLITS,
+  mergeSplitEvents,
+  reconcileTradesAgainstPrices
+} from "./portfolio/corporateActions";
+import type { SplitEvent } from "./portfolio/corporateActions";
 import { priceHoldings } from "./market/quotes";
 import { buildAllocationSlices } from "./portfolio/allocation";
 import { parseSbiExecutionCsv } from "./data/parseSbiCsv";
@@ -139,6 +145,7 @@ export default function App() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [quoteMessage, setQuoteMessage] = useState("Quotes not refreshed");
   const [historyByCode, setHistoryByCode] = useState<PriceHistory>({});
+  const [splitsByCode, setSplitsByCode] = useState<Record<string, Array<{ exDate: string; ratio: number }>>>({});
   const [benchmarks, setBenchmarks] = useState<{
     topix: BenchmarkPoint[];
     nikkei225: BenchmarkPoint[];
@@ -154,8 +161,23 @@ export default function App() {
     [externalDividends]
   );
 
-  const portfolio = useMemo(() => buildPortfolioState(trades), [trades]);
+  // Splits come from Yahoo's price feed (the same source that adjusts the prices), merged
+  // with the manual STOCK_SPLITS fallback and de-duped, so quantity and price adjustments
+  // always agree — no hand-maintained list to forget. J-Quants AdjustmentFactor can feed
+  // this same list when wired in.
+  const splits = useMemo<SplitEvent[]>(() => {
+    const detected: SplitEvent[] = Object.entries(splitsByCode).flatMap(([code, events]) =>
+      events.map((event) => ({ code, exDate: event.exDate, ratio: event.ratio }))
+    );
+    return mergeSplitEvents(STOCK_SPLITS, detected);
+  }, [splitsByCode]);
+
+  const portfolio = useMemo(() => buildPortfolioState(trades, undefined, splits), [trades, splits]);
   const historicalHoldings = useMemo(() => buildHistoricalHoldings(trades), [trades]);
+  const dataWarnings = useMemo(
+    () => reconcileTradesAgainstPrices(trades, historyByCode, splits),
+    [trades, historyByCode, splits]
+  );
   const pricedHoldings = useMemo(
     () => priceHoldings(portfolio.holdings, quotes, {}),
     [portfolio.holdings, quotes]
@@ -179,9 +201,10 @@ export default function App() {
         dividends: externalDividends,
         historyByCode,
         latestPriceByCode,
-        asOfDate
+        asOfDate,
+        splits
       }),
-    [trades, cashFlows, externalDividends, historyByCode, latestPriceByCode, asOfDate]
+    [trades, cashFlows, externalDividends, historyByCode, latestPriceByCode, asOfDate, splits]
   );
 
   const latest = snapshots.at(-1) ?? null;
@@ -255,6 +278,7 @@ export default function App() {
       writeLocalStorageValue(TRADE_CSV_NAME_STORAGE_KEY, file.name);
       setQuotes([]);
       setHistoryByCode({});
+      setSplitsByCode({});
       setBenchmarks({ topix: [], nikkei225: [] });
       setQuoteMessage("Quotes not refreshed");
       setError(null);
@@ -297,6 +321,7 @@ export default function App() {
       if (portfolio.holdings.length === 0) {
         setQuotes([]);
         setHistoryByCode({});
+        setSplitsByCode({});
         setBenchmarks({ topix: [], nikkei225: [] });
         setQuoteMessage("No holdings to quote");
         setError(null);
@@ -313,7 +338,10 @@ export default function App() {
       if (refreshLedgerVersion !== ledgerVersionRef.current) return;
 
       if (quotesResult.status === "fulfilled") setQuotes(quotesResult.value);
-      if (historyResult.status === "fulfilled") setHistoryByCode(historyResult.value);
+      if (historyResult.status === "fulfilled") {
+        setHistoryByCode(historyResult.value.historyByCode);
+        setSplitsByCode(historyResult.value.splitsByCode);
+      }
       if (benchmarksResult.status === "fulfilled") setBenchmarks(benchmarksResult.value);
 
       const failures = [quotesResult, historyResult, benchmarksResult].filter(
@@ -347,6 +375,17 @@ export default function App() {
       />
 
       {error ? <div className="error-banner">{error}</div> : null}
+
+      {dataWarnings.length > 0 ? (
+        <div className="warning-banner" role="alert">
+          <strong>Data integrity check:</strong>
+          <ul>
+            {dataWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <SummaryStrip
         nav={nav}

@@ -2,6 +2,7 @@ import express from "express";
 import {
   fetchNikkei225NetTotalReturnDailySeries,
   fetchYahooDailySeries,
+  fetchYahooHistoryWithSplits,
   fetchYahooLatest
 } from "./yahooFinance.js";
 
@@ -62,10 +63,10 @@ app.get("/api/history", async (req, res) => {
 
   try {
     const history = await Promise.all(
-      symbols.map(async (symbol) => ({
-        symbol,
-        rows: await fetchYahooDailySeries(symbol, range)
-      }))
+      symbols.map(async (symbol) => {
+        const { rows, splits } = await fetchYahooHistoryWithSplits(symbol, range);
+        return { symbol, rows, splits };
+      })
     );
 
     res.json({ history });
