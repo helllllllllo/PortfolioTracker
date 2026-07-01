@@ -167,3 +167,33 @@ export function buildFundSnapshots(inputs: FundInputs): PortfolioSnapshot[] {
 
   return snapshots;
 }
+
+export type PeriodKey = "inception" | "ytd" | "qtd" | "mtd";
+
+export function periodStartDate(asOf: string, period: PeriodKey): string | null {
+  const d = new Date(`${asOf}T00:00:00Z`);
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth(); // 0-based
+  if (period === "inception") return null;
+  if (period === "ytd") return `${year}-01-01`;
+  if (period === "mtd") return `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  const quarterStartMonth = Math.floor(month / 3) * 3; // 0, 3, 6, 9
+  return `${year}-${String(quarterStartMonth + 1).padStart(2, "0")}-01`;
+}
+
+export function timeWeightedReturn(snapshots: PortfolioSnapshot[], period: PeriodKey): number | null {
+  if (snapshots.length === 0) return null;
+  const ordered = [...snapshots].sort((a, b) => a.date.localeCompare(b.date));
+  const end = ordered[ordered.length - 1];
+  const startDate = periodStartDate(end.date, period);
+
+  const startUnit =
+    startDate === null
+      ? UNIT_BASE
+      : ordered.filter((s) => s.date < startDate).at(-1)?.unitNav ??
+        ordered.find((s) => s.date >= startDate)?.unitNav ??
+        null;
+
+  if (startUnit === null || startUnit === 0) return null;
+  return end.unitNav / startUnit - 1;
+}

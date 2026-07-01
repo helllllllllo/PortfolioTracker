@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildFundSnapshots, UNIT_BASE } from "./fundAccounting";
-import type { CashFlow, ExternalDividend, Trade } from "../types";
+import { buildFundSnapshots, periodStartDate, timeWeightedReturn, UNIT_BASE } from "./fundAccounting";
+import type { CashFlow, ExternalDividend, PortfolioSnapshot, Trade } from "../types";
 
 const flat = (code: string) => ({
   [code]: [
@@ -112,5 +112,33 @@ describe("buildFundSnapshots", () => {
     });
     expect(s.at(-1)!.nav).toBe(1_050_000);
     expect(s.at(-1)!.unitNav).toBeCloseTo(105, 4);
+  });
+});
+
+const snap = (date: string, unitNav: number): PortfolioSnapshot => ({
+  date,
+  cash: 0,
+  holdingsValue: 0,
+  nav: 0,
+  navTotalReturn: 0,
+  units: 1,
+  unitNav,
+});
+
+describe("period windows", () => {
+  it("computes period start dates", () => {
+    expect(periodStartDate("2026-07-02", "ytd")).toBe("2026-01-01");
+    expect(periodStartDate("2026-07-02", "qtd")).toBe("2026-07-01");
+    expect(periodStartDate("2026-05-15", "qtd")).toBe("2026-04-01");
+    expect(periodStartDate("2026-07-02", "mtd")).toBe("2026-07-01");
+    expect(periodStartDate("2026-07-02", "inception")).toBeNull();
+  });
+  it("since-inception TWR uses base 100", () => {
+    const s = [snap("2026-01-01", 100), snap("2026-06-30", 120)];
+    expect(timeWeightedReturn(s, "inception")).toBeCloseTo(0.2, 6);
+  });
+  it("QTD uses the last unit price before the quarter start", () => {
+    const s = [snap("2026-03-31", 110), snap("2026-04-01", 110), snap("2026-06-30", 132)];
+    expect(timeWeightedReturn(s, "qtd")).toBeCloseTo(0.2, 6); // 132/110 - 1
   });
 });
