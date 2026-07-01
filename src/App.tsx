@@ -484,7 +484,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="insight-grid">
+        <div className="tearsheet-body">
           <PerformanceChart data={chartData} benchmarkLabels={BENCHMARK_LABELS} asOf={asOfDate} />
           <AllocationPieChart slices={allocationSlices} currency="JPY" asOf={asOfDate} />
         </div>

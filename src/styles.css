@@ -438,13 +438,21 @@ button:hover,
 
 .allocation-layout {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 13px;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 28px;
+  align-items: center;
 }
 
 .allocation-chart {
   position: relative;
-  min-height: 230px;
+  min-height: 240px;
+}
+
+@media (max-width: 860px) {
+  .allocation-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
 }
 
 .allocation-total {
@@ -475,7 +483,9 @@ button:hover,
 
 .allocation-list {
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px 18px;
+  align-content: start;
 }
 
 .allocation-row {
@@ -988,8 +998,9 @@ tbody tr:hover {
   margin-bottom: 18px;
 }
 
-.report-tearsheet .insight-grid {
-  margin-bottom: 0;
+.tearsheet-body {
+  display: grid;
+  gap: 18px;
 }
 
 .tearsheet-header {
