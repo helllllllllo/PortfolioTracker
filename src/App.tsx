@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DashboardHeader } from "./components/DashboardHeader";
 import { AllocationPieChart } from "./components/AllocationPieChart";
 import { DividendsPanel } from "./components/DividendsPanel";
@@ -21,6 +21,7 @@ import type { PeriodKey, PriceHistory } from "./portfolio/fundAccounting";
 import { moneyWeightedReturn } from "./portfolio/irr";
 import { quarterlyReturns } from "./portfolio/nav";
 import { buildPerformanceChartData } from "./portfolio/history";
+import { mergeStoredSnapshots } from "./portfolio/navStore";
 import { buildHistoricalHoldings, buildPortfolioState } from "./portfolio/positions";
 import {
   STOCK_SPLITS,
@@ -34,7 +35,7 @@ import { buildAttribution } from "./portfolio/attribution";
 import { parseSbiExecutionCsv } from "./data/parseSbiCsv";
 import { parseSbiCashFlowCsv } from "./data/parseSbiCashFlowCsv";
 import { parseDividendCsv } from "./data/parseDividendCsv";
-import type { BenchmarkPoint, CashFlow, ExternalDividend, Quote, Trade } from "./types";
+import type { BenchmarkPoint, CashFlow, ExternalDividend, PortfolioSnapshot, Quote, Trade } from "./types";
 import "./styles.css";
 
 const TRADES_STORAGE_KEY = "portfolio:trades";
@@ -44,6 +45,7 @@ const CASHFLOW_CSV_NAME_STORAGE_KEY = "portfolio:cashFlowCsvName";
 const DIVIDENDS_STORAGE_KEY = "portfolio:externalDividends";
 const EXPECTED_ANNUAL_DIVIDEND_STORAGE_KEY = "portfolio:expectedAnnualDividend";
 const PERIOD_STORAGE_KEY = "portfolio:period";
+const SNAPSHOTS_STORAGE_KEY = "portfolio:navSnapshots";
 
 const DIVIDEND_SEED_DATE = "2026-06-29";
 const DEFAULT_EXTERNAL_DIVIDENDS: ExternalDividend[] = [
@@ -210,11 +212,33 @@ export default function App() {
     [trades, cashFlows, externalDividends, historyByCode, latestPriceByCode, asOfDate, splits]
   );
 
-  const latest = snapshots.at(-1) ?? null;
+  // Persisted daily NAV: show real history on load before any network call, and keep
+  // early history once the rolling price window moves past inception. Fresh (live) data
+  // wins; stored only backfills dates the fresh series lacks.
+  const [storedSnapshots, setStoredSnapshots] = useState<PortfolioSnapshot[]>(() =>
+    loadJsonArray<PortfolioSnapshot>(SNAPSHOTS_STORAGE_KEY)
+  );
+  const hasLiveData = quotes.length > 0;
+  const displaySnapshots = useMemo(
+    () =>
+      hasLiveData
+        ? mergeStoredSnapshots(storedSnapshots, snapshots)
+        : storedSnapshots.length > 0
+          ? storedSnapshots
+          : snapshots,
+    [hasLiveData, storedSnapshots, snapshots]
+  );
+  useEffect(() => {
+    if (hasLiveData && snapshots.length > 0) {
+      writeLocalStorageValue(SNAPSHOTS_STORAGE_KEY, JSON.stringify(snapshots));
+    }
+  }, [hasLiveData, snapshots]);
+
+  const latest = displaySnapshots.at(-1) ?? null;
   const nav = latest?.nav ?? 0;
   const cash = latest?.cash ?? 0;
-  const sinceInception = timeWeightedReturn(snapshots, "inception");
-  const periodReturn = timeWeightedReturn(snapshots, period);
+  const sinceInception = timeWeightedReturn(displaySnapshots, "inception");
+  const periodReturn = timeWeightedReturn(displaySnapshots, period);
   const irr = moneyWeightedReturn(cashFlows, externalDividends, nav, asOfDate);
   const netContributions = cashFlows.reduce(
     (sum, flow) =>
@@ -222,14 +246,14 @@ export default function App() {
     0
   );
 
-  const chartStartDate = periodStartDate(asOfDate, period) ?? snapshots[0]?.date;
+  const chartStartDate = periodStartDate(asOfDate, period) ?? displaySnapshots[0]?.date;
   const chartData = useMemo(
-    () => buildPerformanceChartData(snapshots, benchmarks.topix, benchmarks.nikkei225, chartStartDate),
-    [snapshots, benchmarks.topix, benchmarks.nikkei225, chartStartDate]
+    () => buildPerformanceChartData(displaySnapshots, benchmarks.topix, benchmarks.nikkei225, chartStartDate),
+    [displaySnapshots, benchmarks.topix, benchmarks.nikkei225, chartStartDate]
   );
   const quarterly = useMemo(
-    () => quarterlyReturns(snapshots, benchmarks.topix, benchmarks.nikkei225, externalDividends),
-    [snapshots, benchmarks.topix, benchmarks.nikkei225, externalDividends]
+    () => quarterlyReturns(displaySnapshots, benchmarks.topix, benchmarks.nikkei225, externalDividends),
+    [displaySnapshots, benchmarks.topix, benchmarks.nikkei225, externalDividends]
   );
   const allocationSlices = useMemo(
     () => buildAllocationSlices(pricedHoldings, cash, "JPY"),
@@ -287,6 +311,8 @@ export default function App() {
       setHistoryByCode({});
       setSplitsByCode({});
       setBenchmarks({ topix: [], nikkei225: [] });
+      setStoredSnapshots([]);
+      writeLocalStorageValue(SNAPSHOTS_STORAGE_KEY, "[]");
       setQuoteMessage("Quotes not refreshed");
       setError(null);
     } catch (err) {
