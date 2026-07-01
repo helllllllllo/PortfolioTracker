@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { BenchmarkPoint } from "../types";
+import type { BenchmarkPoint, ExternalDividend, PortfolioSnapshot } from "../types";
 import { applyInternalIncomeToSnapshot, buildCurrentSnapshot, quarterlyReturns } from "./nav";
 
 describe("NAV calculations", () => {
@@ -154,5 +154,23 @@ describe("NAV calculations", () => {
       topixReturn: 0.1,
       nikkei225Return: 0.02
     });
+  });
+
+  it("attributes dividends to the quarter received", () => {
+    const s = (date: string, unitNav: number, navTotalReturn: number): PortfolioSnapshot => ({
+      date,
+      cash: 0,
+      holdingsValue: 0,
+      nav: navTotalReturn,
+      navTotalReturn,
+      units: 1,
+      unitNav
+    });
+    const snaps = [s("2026-04-01", 100, 1_000_000), s("2026-06-30", 110, 1_100_000)];
+    const divs: ExternalDividend[] = [{ date: "2026-06-15", amount: 20_000 }];
+
+    const rows = quarterlyReturns(snaps, [], [], divs);
+    const q2 = rows.find((row) => row.quarter === "2026 Q2")!;
+    expect(q2.dividendContribution).toBeCloseTo(20_000 / 1_000_000, 6);
   });
 });

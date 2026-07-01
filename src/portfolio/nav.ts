@@ -124,17 +124,34 @@ export function buildUnitReturnSeries(snapshots: PortfolioSnapshot[]): Portfolio
 export function quarterlyReturns(
   portfolio: PortfolioSnapshot[],
   topix: BenchmarkPoint[],
-  nikkei225: BenchmarkPoint[]
+  nikkei225: BenchmarkPoint[],
+  dividends: { date: string; amount: number }[] = []
 ): QuarterlyReturn[] {
   const quarters = Array.from(new Set(portfolio.map((row) => quarterKey(row.date)))).sort(
     compareQuarter
   );
+  const ordered = [...portfolio].sort((a, b) => a.date.localeCompare(b.date));
+  const totalReturnNav = (snapshot: PortfolioSnapshot): number =>
+    snapshot.navTotalReturn ?? snapshot.nav;
 
   return quarters
     .map((quarter) => {
       const portfolioReturn = periodReturn(portfolio, (row) => row.date, (row) => row.unitNav, quarter);
       const topixReturn = periodReturn(topix, (row) => row.date, (row) => row.normalized, quarter);
       const nikkei225Return = periodReturn(nikkei225, (row) => row.date, (row) => row.normalized, quarter);
+
+      const quarterDividends = dividends
+        .filter((dividend) => quarterKey(dividend.date) === quarter)
+        .reduce((sum, dividend) => sum + dividend.amount, 0);
+      const startDate = quarterStartDate(quarter);
+      const baseNav =
+        (ordered.filter((row) => row.date < startDate).at(-1) ??
+          ordered.find((row) => quarterKey(row.date) === quarter));
+      const baseNavTotalReturn = baseNav ? totalReturnNav(baseNav) : 0;
+      const dividendContribution =
+        quarterDividends === 0 || baseNavTotalReturn === 0
+          ? null
+          : quarterDividends / baseNavTotalReturn;
 
       return {
         quarter,
@@ -145,7 +162,7 @@ export function quarterlyReturns(
           portfolioReturn === null || topixReturn === null ? null : portfolioReturn - topixReturn,
         vsNikkei225:
           portfolioReturn === null || nikkei225Return === null ? null : portfolioReturn - nikkei225Return,
-        dividendContribution: null
+        dividendContribution
       };
     })
     .filter(
